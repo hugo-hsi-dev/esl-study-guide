@@ -1,12 +1,14 @@
 import { desc, eq } from 'drizzle-orm';
-import type { ErrorSignal } from './assessment-items';
+import { getSeedAssessmentItems, type AssessmentArea, type ErrorSignal } from './assessment-items';
 import type { Db } from './db';
-import { assessmentAttempt, practiceAttempt } from './db/schema';
+import { assessmentAttempt, practiceAttempt, type AttemptResponse } from './db/schema';
 import type { SkillProfile, StudyPlan } from './assessment-diagnosis';
 
 export type PracticeProblem = {
 	id: string;
+	targetArea: AssessmentArea;
 	targetSignal: ErrorSignal;
+	sourceResponseItemId?: string;
 	prompt: string;
 	choices: { id: string; text: string }[];
 	answerKey: string;
@@ -25,7 +27,30 @@ export type PracticeMetadata = {
 	modelVersion: '2026-07-08';
 };
 
-const problems: Record<ErrorSignal, Omit<PracticeProblem, 'id' | 'targetSignal'>> = {
+type PracticeGenerationInput = {
+	skillProfile: SkillProfile;
+	studyPlan: StudyPlan;
+	recentResponses?: AttemptResponse[];
+};
+
+const defaultAreaBySignal: Record<ErrorSignal, AssessmentArea> = {
+	main_idea: 'reading',
+	detail: 'listening',
+	vocabulary_in_context: 'vocabulary',
+	verb_form: 'grammar_usage',
+	subject_verb_agreement: 'grammar_usage',
+	article_determiner: 'writing',
+	plural_countability: 'writing',
+	preposition: 'grammar_usage',
+	pronoun_choice: 'grammar_usage',
+	sentence_control: 'writing',
+	collocation: 'vocabulary',
+	task_completion: 'speaking',
+	clarity: 'speaking',
+	fluency: 'speaking'
+};
+
+const problems: Record<ErrorSignal, Omit<PracticeProblem, 'id' | 'targetArea' | 'targetSignal'>> = {
 	main_idea: {
 		prompt: 'What is the main idea? "Mina missed the bus, so she walked to work."',
 		choices: [
@@ -188,20 +213,40 @@ export const practiceMetadata: PracticeMetadata = {
 	modelVersion: '2026-07-08'
 };
 
-export const generatePracticeProblem = (
-	skillProfile: SkillProfile,
-	studyPlan: StudyPlan
-): PracticeProblem => {
+export const generatePracticeProblem = ({
+	skillProfile,
+	studyPlan,
+	recentResponses = []
+}: PracticeGenerationInput): PracticeProblem => {
+	const items = new Map(getSeedAssessmentItems().map((item) => [item.id, item]));
 	const targetSignal =
 		studyPlan.targetSignals[0] ?? skillProfile.priorityWeaknesses[0]?.signal ?? 'verb_form';
+	const responseHasTargetSignal = (response: AttemptResponse) => {
+		const signals = items.get(response.itemId)?.errorSignalTags as
+			readonly ErrorSignal[] | undefined;
+		return signals?.includes(targetSignal) ?? false;
+	};
+	const targetArea =
+		skillProfile.priorityWeaknesses.find((weakness) => weakness.signal === targetSignal)?.area ??
+		recentResponses.find(responseHasTargetSignal)?.area ??
+		defaultAreaBySignal[targetSignal];
+	const sourceResponse = recentResponses.find(
+		(response) => response.area === targetArea && responseHasTargetSignal(response)
+	);
+
 	return validatePracticeProblem({
 		id: `practice-${targetSignal}-1`,
+		targetArea,
 		targetSignal,
+		sourceResponseItemId: sourceResponse?.itemId,
 		...problems[targetSignal]
 	});
 };
 
 export const validatePracticeProblem = (problem: PracticeProblem) => {
+	if (!problem.targetArea || !problem.targetSignal) {
+		throw new Error(`Practice problem ${problem.id} is missing its target skill or signal.`);
+	}
 	if (!problem.choices.some((choice) => choice.id === problem.answerKey)) {
 		throw new Error(`Practice problem ${problem.id} is missing its answer key choice.`);
 	}
@@ -231,7 +276,11 @@ export async function getLatestPracticeProblem(db: Db, learnerUserId: string) {
 
 	return {
 		assessmentAttemptId: attempt.id,
-		problem: generatePracticeProblem(attempt.skillProfileJson, attempt.studyPlanJson)
+		problem: generatePracticeProblem({
+			skillProfile: attempt.skillProfileJson,
+			studyPlan: attempt.studyPlanJson,
+			recentResponses: attempt.responsesJson
+		})
 	};
 }
 
