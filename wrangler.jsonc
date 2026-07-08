@@ -9,7 +9,8 @@
 		"directory": ".svelte-kit/cloudflare"
 	},
 	"ai": {
-		"binding": "AI"
+		"binding": "AI",
+		"remote": true
 	},
 	"vars": {
 		"ORIGIN": "https://esl-study-guide.hugo-hsi.workers.dev",
