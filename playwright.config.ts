@@ -9,7 +9,8 @@ export default defineConfig({
 			ORIGIN: 'http://localhost:4173',
 			BETTER_AUTH_SECRET: '0123456789abcdef0123456789abcdef',
 			GITHUB_CLIENT_ID: 'test-client-id',
-			GITHUB_CLIENT_SECRET: 'test-client-secret'
+			GITHUB_CLIENT_SECRET: 'test-client-secret',
+			ADMIN_EMAILS: 'admin@example.com'
 		}
 	},
 	testMatch: '**/*.e2e.{ts,js}'
