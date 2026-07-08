@@ -1,5 +1,7 @@
 import { getRequestEvent } from '$app/server';
-import { error, redirect, type RequestEvent } from '@sveltejs/kit';
+import { error, type RequestEvent } from '@sveltejs/kit';
+// @ts-expect-error SvelteKit next exports this runtime class without module types.
+import { Redirect } from '@sveltejs/kit/internal';
 
 export const accountRoles = ['learner', 'admin'] as const;
 export type AccountRole = (typeof accountRoles)[number];
@@ -43,7 +45,7 @@ export function requireRole(
 
 	if (!user) {
 		const redirectTo = `${event.url.pathname}${event.url.search}`;
-		return redirect(302, `/login?redirectTo=${encodeURIComponent(redirectTo)}`);
+		throw new Redirect(302, `/login?redirectTo=${encodeURIComponent(redirectTo)}`);
 	}
 
 	if (!hasRole(user, role)) {
