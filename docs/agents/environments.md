@@ -51,7 +51,7 @@ set -euo pipefail
 corepack enable
 pnpm install --frozen-lockfile
 pnpm gen
-pnpm exec playwright install chromium
+pnpm exec playwright install --with-deps chromium
 ```
 
 Maintenance script:
