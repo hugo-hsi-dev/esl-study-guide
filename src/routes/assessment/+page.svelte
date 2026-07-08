@@ -2,7 +2,6 @@
 	import { getAssessmentPage, submitAssessment, submitPractice } from './data.remote';
 
 	const data = await getAssessmentPage();
-	const practice = $derived(submitAssessment.result?.practice ?? data.practice);
 </script>
 
 <svelte:head><title>ESL Assessment</title></svelte:head>
@@ -72,6 +71,7 @@
 		</section>
 	{/if}
 
+	{const practice = $derived(submitAssessment.result?.practice ?? data.practice)}
 	{#if practice?.problem}
 		<section class="space-y-4 border-t border-zinc-200 pt-6">
 			<div class="space-y-2">
@@ -114,6 +114,7 @@
 			{/if}
 		</section>
 	{/if}
+
 	{#each submitAssessment.fields.allIssues() ?? [] as issue, index (`${issue.message}-${index}`)}
 		<p class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
 			{issue.message}
