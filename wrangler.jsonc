@@ -13,7 +13,8 @@
 	},
 	"vars": {
 		"WORKERS_AI_TEXT_MODEL_ID": "@cf/zai-org/glm-4.7-flash",
-		"WORKERS_AI_TRANSCRIPTION_MODEL_ID": "@cf/openai/whisper-large-v3-turbo"
+		"WORKERS_AI_TRANSCRIPTION_MODEL_ID": "@cf/openai/whisper-large-v3-turbo",
+		"WORKERS_AI_TTS_MODEL_ID": "@cf/myshell-ai/melotts"
 	},
 	"d1_databases": [
 		{

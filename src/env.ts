@@ -33,6 +33,6 @@ export const variables = defineEnvVars({
 		description: 'Configurable Workers AI transcription model ID for speaking feedback.'
 	},
 	WORKERS_AI_TTS_MODEL_ID: {
-		description: 'Configurable Workers AI text-to-speech model ID for listen-and-repeat prompts.'
+		description: 'Configurable Workers AI text-to-speech model ID for listening prompts.'
 	}
 });
