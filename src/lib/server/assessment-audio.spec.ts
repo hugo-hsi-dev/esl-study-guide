@@ -54,4 +54,22 @@ describe('generateAssessmentAudio', () => {
 		expect(audio.provider).toBe('workers-ai');
 		expect(new TextDecoder().decode(audio.bytes)).toBe('mp3');
 	});
+
+	it('falls back to deterministic audio when Workers AI TTS fails', async () => {
+		expect.assertions(2);
+
+		const source = getAssessmentItemAudioSource('listen-mei-coworker-time');
+		if (!source) throw new Error('missing test audio source');
+
+		const audio = await generateAssessmentAudio(source, {
+			AI: {
+				run: async () => {
+					throw new Error('TTS failed');
+				}
+			}
+		});
+
+		expect(String.fromCharCode(...audio.bytes.slice(0, 4))).toBe('RIFF');
+		expect(audio.provider).toBe('deterministic-fixture');
+	});
 });

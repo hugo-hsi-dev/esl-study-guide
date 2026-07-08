@@ -31,27 +31,22 @@ export async function generateAssessmentAudio(
 ): Promise<GeneratedAssessmentAudio> {
 	const model = getWorkersAiTtsModelId(env);
 
-	if (!env?.AI) {
+	if (!env?.AI) return deterministicAudio(source, model);
+
+	try {
+		const output = (await env.AI.run(model, ttsInputs(model, source.script))) as TtsOutput;
+
 		return {
-			bytes: deterministicWav(source.script),
-			contentType: 'audio/wav',
-			provider: 'deterministic-fixture',
+			bytes: await ttsOutputBytes(output),
+			contentType: 'audio/mpeg',
+			provider: 'workers-ai',
 			model,
 			schemaVersion: assessmentAudioSchemaVersion,
 			itemVersion: source.itemVersion
 		};
+	} catch {
+		return deterministicAudio(source, model);
 	}
-
-	const output = (await env.AI.run(model, ttsInputs(model, source.script))) as TtsOutput;
-
-	return {
-		bytes: await ttsOutputBytes(output),
-		contentType: 'audio/mpeg',
-		provider: 'workers-ai',
-		model,
-		schemaVersion: assessmentAudioSchemaVersion,
-		itemVersion: source.itemVersion
-	};
 }
 
 function ttsInputs(model: string, text: string) {
@@ -91,6 +86,17 @@ async function ttsOutputBytes(output: TtsOutput) {
 	if (output instanceof ReadableStream)
 		return new Uint8Array(await new Response(output).arrayBuffer());
 	return base64ToBytes(typeof output === 'string' ? output : output.audio);
+}
+
+function deterministicAudio(source: AudioSource, model: string): GeneratedAssessmentAudio {
+	return {
+		bytes: deterministicWav(source.script),
+		contentType: 'audio/wav',
+		provider: 'deterministic-fixture',
+		model,
+		schemaVersion: assessmentAudioSchemaVersion,
+		itemVersion: source.itemVersion
+	};
 }
 
 function deterministicWav(seed: string) {
