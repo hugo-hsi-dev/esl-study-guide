@@ -138,6 +138,12 @@
 					<p class="text-zinc-700">{item.learnerTask.instructions}</p>
 				</div>
 
+				{#if item.audioUrl}
+					<audio class="w-full" controls preload="metadata" src={item.audioUrl}>
+						<a href={item.audioUrl}>Play listening audio</a>
+					</audio>
+				{/if}
+
 				{#if item.learnerTask.choices}
 					<div class="space-y-3">
 						{#each item.learnerTask.choices as choice (choice.id)}

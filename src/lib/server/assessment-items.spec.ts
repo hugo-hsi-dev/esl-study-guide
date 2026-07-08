@@ -13,7 +13,7 @@ describe('seedAssessmentItems', () => {
 	});
 
 	it('keeps answer and review data out of learner-facing items', () => {
-		expect.assertions(4);
+		expect.assertions(5);
 
 		const learnerItemJson = JSON.stringify(getLearnerAssessmentItems());
 
@@ -21,5 +21,6 @@ describe('seedAssessmentItems', () => {
 		expect(learnerItemJson).not.toContain('rubric');
 		expect(learnerItemJson).not.toContain('review');
 		expect(learnerItemJson).not.toContain('serverOnlyAudioScript');
+		expect(learnerItemJson).not.toContain('serverOnlyAudioMetadata');
 	});
 });
