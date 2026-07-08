@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
 	webServer: {
-		command: 'npm run build && npm run preview -- --env-file .env.test',
+		command: 'pnpm build && pnpm preview',
 		port: 4173,
 		env: {
 			DATABASE_URL: 'file:local.db',
