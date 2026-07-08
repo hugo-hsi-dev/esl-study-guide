@@ -1,8 +1,10 @@
 import { desc, eq } from 'drizzle-orm';
+import { z } from 'zod';
 import type { ErrorSignal } from './assessment-items';
 import type { Db } from './db';
 import { assessmentAttempt, practiceAttempt } from './db/schema';
 import type { SkillProfile, StudyPlan } from './assessment-diagnosis';
+import { getWorkersAiRuntime, runWorkersAiJson } from './workers-ai';
 
 export type PracticeProblem = {
 	id: string;
@@ -21,7 +23,8 @@ export type PracticeFeedback = {
 
 export type PracticeMetadata = {
 	schemaVersion: 1;
-	model: 'deterministic-practice';
+	provider: 'local' | 'workers-ai';
+	model: string;
 	modelVersion: '2026-07-08';
 };
 
@@ -184,16 +187,65 @@ const problems: Record<ErrorSignal, Omit<PracticeProblem, 'id' | 'targetSignal'>
 
 export const practiceMetadata: PracticeMetadata = {
 	schemaVersion: 1,
+	provider: 'local',
 	model: 'deterministic-practice',
 	modelVersion: '2026-07-08'
 };
 
-export const generatePracticeProblem = (
+const errorSignals = [
+	'main_idea',
+	'detail',
+	'vocabulary_in_context',
+	'verb_form',
+	'subject_verb_agreement',
+	'article_determiner',
+	'plural_countability',
+	'preposition',
+	'pronoun_choice',
+	'sentence_control',
+	'collocation',
+	'task_completion',
+	'clarity',
+	'fluency'
+] as const satisfies readonly ErrorSignal[];
+
+const practiceProblemSchema = z
+	.object({
+		id: z.string().trim().min(1).max(80),
+		targetSignal: z.enum(errorSignals),
+		prompt: z.string().trim().min(1).max(500),
+		choices: z
+			.array(
+				z.object({
+					id: z.string().trim().min(1).max(8),
+					text: z.string().trim().min(1).max(200)
+				})
+			)
+			.min(2)
+			.max(4),
+		answerKey: z.string().trim().min(1).max(8),
+		explanation: z.string().trim().min(1).max(500),
+		difficulty: z.literal('easy')
+	})
+	.refine((problem) => problem.choices.some((choice) => choice.id === problem.answerKey), {
+		message: 'Practice problem answer key must match a choice.'
+	}) satisfies z.ZodType<PracticeProblem>;
+
+const practiceMetadataSchema = z.object({
+	schemaVersion: z.literal(1),
+	provider: z.enum(['local', 'workers-ai']),
+	model: z.string().trim().min(1),
+	modelVersion: z.literal('2026-07-08')
+}) satisfies z.ZodType<PracticeMetadata>;
+
+const targetSignalFrom = (skillProfile: SkillProfile, studyPlan: StudyPlan) =>
+	studyPlan.targetSignals[0] ?? skillProfile.priorityWeaknesses[0]?.signal ?? 'verb_form';
+
+const generateDeterministicPracticeProblem = (
 	skillProfile: SkillProfile,
 	studyPlan: StudyPlan
 ): PracticeProblem => {
-	const targetSignal =
-		studyPlan.targetSignals[0] ?? skillProfile.priorityWeaknesses[0]?.signal ?? 'verb_form';
+	const targetSignal = targetSignalFrom(skillProfile, studyPlan);
 	return validatePracticeProblem({
 		id: `practice-${targetSignal}-1`,
 		targetSignal,
@@ -201,14 +253,63 @@ export const generatePracticeProblem = (
 	});
 };
 
+export const generatePracticeProblem = async (
+	skillProfile: SkillProfile,
+	studyPlan: StudyPlan
+): Promise<{ problem: PracticeProblem; metadata: PracticeMetadata }> => {
+	const runtime = getWorkersAiRuntime();
+	if (!runtime) {
+		return {
+			problem: generateDeterministicPracticeProblem(skillProfile, studyPlan),
+			metadata: practiceMetadata
+		};
+	}
+
+	const targetSignal = targetSignalFrom(skillProfile, studyPlan);
+	const problem = await runWorkersAiJson(
+		runtime,
+		[
+			{
+				role: 'system',
+				content:
+					'Return only JSON for one beginner ESL multiple-choice practice problem. No markdown.'
+			},
+			{
+				role: 'user',
+				content: JSON.stringify({
+					targetSignal,
+					skillProfile,
+					studyPlan,
+					requirements: [
+						'Use the targetSignal exactly.',
+						'Use difficulty "easy".',
+						'Use 3 choices with short ids like a, b, c.',
+						'Make the answerKey equal one choice id.',
+						'Use daily-life ESL content suitable for adult beginners.'
+					]
+				})
+			}
+		],
+		practiceProblemSchema
+	);
+
+	return {
+		problem: validatePracticeProblem({ ...problem, targetSignal }),
+		metadata: {
+			schemaVersion: 1,
+			provider: runtime.provider,
+			model: runtime.textModelId,
+			modelVersion: '2026-07-08'
+		}
+	};
+};
+
 export const validatePracticeProblem = (problem: PracticeProblem) => {
-	if (!problem.choices.some((choice) => choice.id === problem.answerKey)) {
-		throw new Error(`Practice problem ${problem.id} is missing its answer key choice.`);
-	}
-	if (!problem.prompt || !problem.explanation || !problem.difficulty) {
-		throw new Error(`Practice problem ${problem.id} is incomplete.`);
-	}
-	return problem;
+	return practiceProblemSchema.parse(problem);
+};
+
+export const validatePracticeMetadata = (metadata: PracticeMetadata) => {
+	return practiceMetadataSchema.parse(metadata);
 };
 
 export const gradePracticeAnswer = (problem: PracticeProblem, answer: string): PracticeFeedback => {
@@ -220,6 +321,17 @@ export const gradePracticeAnswer = (problem: PracticeProblem, answer: string): P
 };
 
 export async function getLatestPracticeProblem(db: Db, learnerUserId: string) {
+	const attempt = await getLatestAssessmentAttempt(db, learnerUserId);
+	if (!attempt?.skillProfileJson || !attempt.studyPlanJson) return null;
+
+	const generated = await generatePracticeProblem(attempt.skillProfileJson, attempt.studyPlanJson);
+	return {
+		assessmentAttemptId: attempt.id,
+		...generated
+	};
+}
+
+async function getLatestAssessmentAttempt(db: Db, learnerUserId: string) {
 	const [attempt] = await db
 		.select()
 		.from(assessmentAttempt)
@@ -227,27 +339,32 @@ export async function getLatestPracticeProblem(db: Db, learnerUserId: string) {
 		.orderBy(desc(assessmentAttempt.createdAt))
 		.limit(1);
 
-	if (!attempt?.skillProfileJson || !attempt.studyPlanJson) return null;
-
-	return {
-		assessmentAttemptId: attempt.id,
-		problem: generatePracticeProblem(attempt.skillProfileJson, attempt.studyPlanJson)
-	};
+	return attempt;
 }
 
-export async function savePracticeAttempt(db: Db, learnerUserId: string, answer: string) {
-	const latest = await getLatestPracticeProblem(db, learnerUserId);
-	if (!latest) return null;
+export async function savePracticeAttempt(
+	db: Db,
+	learnerUserId: string,
+	answer: string,
+	submitted?: { problem: PracticeProblem; metadata: PracticeMetadata }
+) {
+	const latest = await getLatestAssessmentAttempt(db, learnerUserId);
+	if (!latest?.skillProfileJson || !latest.studyPlanJson) return null;
 
-	const feedback = gradePracticeAnswer(latest.problem, answer);
+	const generated =
+		submitted ?? (await generatePracticeProblem(latest.skillProfileJson, latest.studyPlanJson));
+	const problem = validatePracticeProblem(generated.problem);
+	const metadata = validatePracticeMetadata(generated.metadata);
+
+	const feedback = gradePracticeAnswer(problem, answer);
 	await db.insert(practiceAttempt).values({
 		learnerUserId,
-		assessmentAttemptId: latest.assessmentAttemptId,
-		practiceProblemJson: latest.problem,
+		assessmentAttemptId: latest.id,
+		practiceProblemJson: problem,
 		answer,
 		feedbackJson: feedback,
-		metadataJson: practiceMetadata
+		metadataJson: metadata
 	});
 
-	return { ...latest, answer, feedback };
+	return { assessmentAttemptId: latest.id, problem, metadata, answer, feedback };
 }

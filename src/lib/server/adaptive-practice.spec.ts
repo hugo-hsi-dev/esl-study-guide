@@ -72,10 +72,10 @@ describe('savePracticeAttempt', () => {
 		expect(row.metadataJson).toMatchObject({ model: 'deterministic-practice', schemaVersion: 1 });
 	});
 
-	it('generates a validated problem from the top target signal', () => {
+	it('generates a validated problem from the top target signal', async () => {
 		expect.assertions(2);
 
-		const problem = generatePracticeProblem(
+		const { problem } = await generatePracticeProblem(
 			{
 				skillBands: {
 					listening: 'functional',

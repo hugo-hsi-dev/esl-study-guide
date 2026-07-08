@@ -2,6 +2,7 @@ import { assessmentAttempt, type AttemptResponse, type AttemptSelectedItem } fro
 import type { Db } from './db';
 import { diagnoseAssessmentAttempt } from './assessment-diagnosis';
 import { getLearnerAssessmentItems, type AssessmentArea } from './assessment-items';
+import { transcribeSpeakingAudio } from './workers-ai';
 
 const requiredAreas = new Set<AssessmentArea>([
 	'listening',
@@ -19,7 +20,12 @@ const stringField = (formData: FormData, name: string) => {
 	return typeof value === 'string' ? value.trim() : '';
 };
 
-export function buildAssessmentAttemptPayload(formData: FormData) {
+const fileField = (formData: FormData, name: string) => {
+	const value = formData.get(name);
+	return value instanceof File && value.size > 0 ? value : null;
+};
+
+export async function buildAssessmentAttemptPayload(formData: FormData) {
 	const items = getLearnerAssessmentItems();
 	const seenAreas = new Set<AssessmentArea>();
 	const selectedItems: AttemptSelectedItem[] = [];
@@ -47,12 +53,25 @@ export function buildAssessmentAttemptPayload(formData: FormData) {
 			if (!Number.isInteger(responseSeconds) || responseSeconds < 1) {
 				throw new AssessmentAttemptInputError('Speaking response metadata is required.');
 			}
+			const submittedTranscript = stringField(formData, `speakingTranscript:${item.id}`);
+			const audio = fileField(formData, `speakingAudio:${item.id}`);
+			const transcribed = audio ? await transcribeSpeakingAudio(audio) : null;
+			const metadata: Extract<AttemptResponse, { kind: 'speaking_metadata' }>['metadata'] = {
+				representedBy: 'temporary_metadata',
+				responseSeconds
+			};
+			const transcript = transcribed?.text ?? (submittedTranscript || undefined);
+			if (transcript) {
+				metadata.transcript = transcript;
+				metadata.transcriptSource = transcribed ? 'workers_ai_asr' : 'submitted';
+			}
+			if (transcribed?.metadata) metadata.transcriptionMetadata = transcribed.metadata;
 			responses.push({
 				area: item.area,
 				itemId: item.id,
 				itemVersion: item.version,
 				kind: 'speaking_metadata',
-				metadata: { representedBy: 'temporary_metadata', responseSeconds }
+				metadata
 			});
 			continue;
 		}
@@ -83,8 +102,8 @@ export async function saveAssessmentAttempt(
 	formData: FormData
 ) {
 	const id = crypto.randomUUID();
-	const payload = buildAssessmentAttemptPayload(formData);
-	const diagnosis = diagnoseAssessmentAttempt(payload);
+	const payload = await buildAssessmentAttemptPayload(formData);
+	const diagnosis = await diagnoseAssessmentAttempt(payload);
 
 	await db.insert(assessmentAttempt).values({
 		id,
