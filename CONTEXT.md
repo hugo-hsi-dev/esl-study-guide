@@ -28,6 +28,14 @@ _Avoid_: CEFR equivalence, IELTS score, TOEFL score
 A tagged pattern from assessment answers, such as article use, plurals, tense, prepositions, pronoun choice, sentence control, or collocation. Error signals guide practice without assuming an error based on the learner's first language.
 _Avoid_: Stereotype, fixed L1 weakness
 
+**Assessment Item**:
+A reviewed prompt, answer key or rubric, explanation, and error-signal tags used in the ESL assessment.
+_Avoid_: Question, imported worksheet, generated quiz
+
+**AI Content Review**:
+A separate AI review pass for assessment content where the reviewing session did not author the content being reviewed.
+_Avoid_: Human review, self-review
+
 **Study Plan**:
 A short set of priority skill weaknesses and next practice targets generated from the skill profile.
 _Avoid_: Full curriculum, course syllabus
