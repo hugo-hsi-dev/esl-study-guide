@@ -52,19 +52,19 @@ Use CEFR as a light organizing scale, not as a claim of full CEFR certification.
 
 ## Practical target table
 
-| Target | Chinese L1 relevance | MVP practicality | Recommendation |
-| --- | --- | --- | --- |
-| Articles/determiners | Strong structural gap; no obligatory article system in Mandarin | High | Include from v1 |
-| Verb tense/aspect/morphology | Repeated corpus finding; Chinese lacks English-style finiteness inflection | High | Include from v1 |
-| Plural/countability | Inflectional morphology and count/noncount distinctions recur in writing errors | High | Include from v1 |
-| Prepositions | Frequent in writing-error studies; good cloze coverage | High | Include from v1 |
-| Subject-verb agreement | Repeated inflectional target; machine-checkable | High | Include from v1 |
-| Gerunds/infinitives/nonfinite clauses | Chinese-English finiteness mismatch; common in advanced writing | Medium | Include a few items, avoid over-weighting |
-| Collocation/word choice | Useful for study guidance; harder to score deterministically | Medium | Include in writing rubric and recommendation tags |
-| He/she pronoun gender | Spoken Chinese uses the same pronunciation for male/female third-person pronouns | High | Include a few short-context items |
-| Pronunciation final consonants/clusters | High L1 relevance | Medium-low | Optional self-study screen; defer score |
-| Listening/reading strategies | Important for overall ESL proficiency, less Chinese-L1-specific | Medium-low | Defer unless destination becomes placement/exam prep |
-| Speaking fluency/pragmatics | Important but expensive to score well | Low for first MVP | Defer |
+| Target                                  | Chinese L1 relevance                                                             | MVP practicality  | Recommendation                                       |
+| --------------------------------------- | -------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------- |
+| Articles/determiners                    | Strong structural gap; no obligatory article system in Mandarin                  | High              | Include from v1                                      |
+| Verb tense/aspect/morphology            | Repeated corpus finding; Chinese lacks English-style finiteness inflection       | High              | Include from v1                                      |
+| Plural/countability                     | Inflectional morphology and count/noncount distinctions recur in writing errors  | High              | Include from v1                                      |
+| Prepositions                            | Frequent in writing-error studies; good cloze coverage                           | High              | Include from v1                                      |
+| Subject-verb agreement                  | Repeated inflectional target; machine-checkable                                  | High              | Include from v1                                      |
+| Gerunds/infinitives/nonfinite clauses   | Chinese-English finiteness mismatch; common in advanced writing                  | Medium            | Include a few items, avoid over-weighting            |
+| Collocation/word choice                 | Useful for study guidance; harder to score deterministically                     | Medium            | Include in writing rubric and recommendation tags    |
+| He/she pronoun gender                   | Spoken Chinese uses the same pronunciation for male/female third-person pronouns | High              | Include a few short-context items                    |
+| Pronunciation final consonants/clusters | High L1 relevance                                                                | Medium-low        | Optional self-study screen; defer score              |
+| Listening/reading strategies            | Important for overall ESL proficiency, less Chinese-L1-specific                  | Medium-low        | Defer unless destination becomes placement/exam prep |
+| Speaking fluency/pragmatics             | Important but expensive to score well                                            | Low for first MVP | Defer                                                |
 
 ## Decision for the map
 
@@ -73,15 +73,27 @@ The first MVP should focus on a diagnostic grammar/usage test plus a short writi
 ## Sources
 
 [^icnale]: Shin'ichiro Ishikawa, Kobe University, [The ICNALE: International Corpus Network of Asian Learners of English](https://language.sakura.ne.jp/icnale/).
+
 [^clec]: Kaatari, Larsson, Wang, Eklund Heinonen, Eickhoff, Kim, and Sundqvist, [Introducing the Chinese Learner English Corpus (CLEC)](https://www.cambridge.org/core/journals/studies-in-second-language-acquisition/article/introducing-the-chinese-learner-english-corpus-clec/859CBA31798105430C424631799F6339), Studies in Second Language Acquisition, Cambridge University Press.
+
 [^egp]: O'Keeffe and Mark, [The English Grammar Profile of learner competence: Methodology and key findings](https://mic.elsevierpure.com/en/publications/the-english-grammar-profile-of-learner-competence-methodology-and/), International Journal of Corpus Linguistics, 2017.
+
 [^zhan]: Zhan, [Frequent Errors in Chinese EFL Learners' Topic-Based Writings](https://eric.ed.gov/?id=EJ1075251), English Language Teaching, 2015.
+
 [^tang]: Tang, [Crosslinguistic Influence on Chinese EFL Learners' Acquisition of English Finite and Nonfinite Distinctions](https://eric.ed.gov/?id=EJ1282680), Cogent Education, 2020.
+
 [^articles]: Lopez, An, and Marsden, [Mandarin Speakers' Acquisition of English Articles](https://eprints.ncl.ac.uk/283418), in Challenges Encountered by Chinese ESL Learners, Springer, 2022.
+
 [^morphemes]: Dogar, Saleem, Aslam, and Khan, [Exploring global linguistic nuances: analyzing region-specific inflectional morpheme frequency in ICNALE](https://link.springer.com/article/10.1186/s40862-024-00291-z), Asian-Pacific Journal of Second and Foreign Language Education, 2024.
+
 [^verbmorph]: Liao, [The Acquisition of English Verb Morphology by Chinese Adolescents and the Role of the Learners' First Language](https://ora.ox.ac.uk/objects/uuid%3Aebbf79af-f76a-467d-ae23-7b40298d42f5/files/rm326m390j), Oxford University Research Archive, 2024.
+
 [^pronouns]: Dong, Wen, Zeng, and Ji, [Exploring the cause of English pronoun gender errors by Chinese learners of English](https://bcdlab.gdufs.edu.cn/Exploring_the_cause_of_English_pronoun_gender_errors_by_Chinese_learners_of_English.pdf), Journal of Psycholinguistic Research.
+
 [^han]: Han, [Pronunciation Problems of Chinese Learners of English](https://eric.ed.gov/?id=EJ1152473), ORTESOL Journal, 2013.
+
 [^finals]: Chen, Wang, and Xu, [Perception of English syllable-final consonants by Chinese Mandarin speakers](https://www.internationalphoneticassociation.org/icphs-proceedings/ICPhS2015/Papers/ICPHS0389.pdf), Proceedings of ICPhS 2015.
+
 [^cefr]: Council of Europe, [CEFR Companion Volume and its language versions](https://www.coe.int/en/web/common-european-framework-reference-languages/cefr-companion-volume-and-its-language-versions), 2020.
+
 [^toefl]: ETS, [TOEFL iBT Test Content and Structure](https://www.ets.org/toefl/test-takers/ibt/about/content.html).
