@@ -101,6 +101,7 @@ Setup script:
 ```sh
 set -euo pipefail
 corepack enable
+test -f .env || { echo "Missing .env. Create it in the source checkout so .worktreeinclude can copy it into this worktree."; exit 1; }
 pnpm install --frozen-lockfile
 pnpm gen
 pnpm db:push
@@ -116,15 +117,15 @@ No cleanup is currently needed. Codex removes managed worktrees on archive, incl
 
 Actions:
 
-| Name    | Icon     | Script                                                                              |
-| ------- | -------- | ----------------------------------------------------------------------------------- |
-| Dev     | play     | `pnpm dev -- --host 127.0.0.1`                                                      |
-| Check   | check    | `pnpm check`                                                                        |
-| Lint    | search   | `pnpm lint`                                                                         |
-| Test    | flask    | `pnpm test`                                                                         |
-| Unit    | terminal | `pnpm test:unit -- --run`                                                           |
-| E2E     | monitor  | `pnpm test:e2e`                                                                     |
-| Build   | package  | `set -a; . ./.env.test; set +a; pnpm build`                                         |
-| Preview | globe    | `set -a; . ./.env.test; set +a; pnpm build && pnpm preview -- --env-file .env.test` |
+| Name    | Icon     | Script                         |
+| ------- | -------- | ------------------------------ |
+| Dev     | play     | `pnpm dev -- --host 127.0.0.1` |
+| Check   | check    | `pnpm check`                   |
+| Lint    | search   | `pnpm lint`                    |
+| Test    | flask    | `pnpm test`                    |
+| Unit    | terminal | `pnpm test:unit -- --run`      |
+| E2E     | monitor  | `pnpm test:e2e`                |
+| Build   | package  | `pnpm build`                   |
+| Preview | globe    | `pnpm build && pnpm preview`   |
 
-Ignored local files copied into Codex-managed worktrees are listed in `.worktreeinclude`. Tracked files such as `.env.test`, `.env.example`, `pnpm-lock.yaml`, and `wrangler.jsonc` are already present in each worktree.
+Ignored local files copied into Codex-managed worktrees are listed in `.worktreeinclude`. Create `.env` in the source checkout before creating a managed worktree. Tracked files such as `.env.example`, `pnpm-lock.yaml`, and `wrangler.jsonc` are already present in each worktree.
