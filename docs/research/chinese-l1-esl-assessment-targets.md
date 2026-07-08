@@ -18,7 +18,7 @@ For a first diagnostic MVP, assess a small set of high-frequency, machine-checka
 6. Sentence structure basics: subject-verb agreement, missing subjects, run-ons, question/embedded-question word order.
 7. Third-person pronoun gender: he/she/his/her in short contexts.
 
-Add pronunciation only as a lightweight optional screen, not as a core MVP score. The most relevant Chinese L1 pronunciation targets are final consonants, consonant clusters, final /l/, dental fricatives, /v/, stress, rhythm, and intonation, but reliable scoring needs audio capture and speech evaluation. A first version can instead flag self-study recommendations from a short listen-and-repeat sample or defer automated pronunciation scoring.
+Defer pronunciation scoring for the MVP. Speaking feedback can use Workers AI transcription plus transcript-level surface analysis for grammar errors, vocabulary misuse, clarity, task completion, fluency indicators, and related observable issues. The most relevant Chinese L1 pronunciation targets are final consonants, consonant clusters, final /l/, dental fricatives, /v/, stress, rhythm, and intonation, but reliable scoring needs dedicated speech evaluation beyond the MVP.
 
 ## Why these targets
 

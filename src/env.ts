@@ -18,5 +18,21 @@ export const variables = defineEnvVars({
 	},
 	ADMIN_EMAILS: {
 		description: 'Comma-separated emails that should receive the Admin role on account creation.'
+	},
+	CLOUDFLARE_ACCOUNT_ID: {
+		description: 'Cloudflare account ID for opt-in Workers AI ai/run checks.'
+	},
+	CLOUDFLARE_API_TOKEN: {
+		description:
+			'Cloudflare API token for opt-in Workers AI ai/run checks. Leave unset for deterministic local/test stubs.'
+	},
+	WORKERS_AI_TEXT_MODEL_ID: {
+		description: 'Configurable Workers AI text model ID for feedback and practice generation.'
+	},
+	WORKERS_AI_TRANSCRIPTION_MODEL_ID: {
+		description: 'Configurable Workers AI transcription model ID for speaking feedback.'
+	},
+	WORKERS_AI_TTS_MODEL_ID: {
+		description: 'Configurable Workers AI text-to-speech model ID for listen-and-repeat prompts.'
 	}
 });

@@ -168,7 +168,8 @@ export function diagnoseAssessmentAttempt({ selectedItems, responses }: Diagnosi
 				pronunciation: {
 					score: null,
 					signals: [],
-					feedback: 'No learner audio file is available for pronunciation judgment.'
+					feedback:
+						'Pronunciation scoring is deferred; speaking feedback uses transcript-level surface analysis.'
 				}
 			}
 		},

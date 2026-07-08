@@ -23,7 +23,11 @@ describe('savePracticeAttempt', () => {
 			rubricOutputs: {
 				writing: { score: 1, signals: [], feedback: 'ok' },
 				speaking: { score: 1, signals: [], feedback: 'ok' },
-				pronunciation: { score: null, signals: [], feedback: 'No audio.' }
+				pronunciation: {
+					score: null,
+					signals: [],
+					feedback: 'Pronunciation scoring is deferred.'
+				}
 			}
 		};
 		const studyPlan: StudyPlan = {
@@ -86,7 +90,11 @@ describe('savePracticeAttempt', () => {
 				rubricOutputs: {
 					writing: { score: 1, signals: [], feedback: 'ok' },
 					speaking: { score: 1, signals: [], feedback: 'ok' },
-					pronunciation: { score: null, signals: [], feedback: 'No audio.' }
+					pronunciation: {
+						score: null,
+						signals: [],
+						feedback: 'Pronunciation scoring is deferred.'
+					}
 				}
 			},
 			{ today: [], thisWeek: [], targetSignals: ['verb_form'] }

@@ -65,14 +65,14 @@ Use this to tune examples, not to score the Learner.
 
 Keep one task type per area. Show progress by area, not by grade.
 
-| Area          | Prototype task                           | Example                                                                             | Signals to capture                                  |
-| ------------- | ---------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Listening     | Short audio, two comprehension choices   | `What time will Mei meet her coworker?`                                             | main idea, detail                                   |
-| Reading       | Short passage, two comprehension choices | `Why did the customer return the shoes?`                                            | main idea, detail, vocabulary-in-context            |
-| Grammar/usage | Fill in the blank                        | `She ____ to work every morning.` -> `go / goes / going`                            | verb form, subject-verb agreement                   |
-| Vocabulary    | Word in context                          | `The train was delayed, so I arrived late.` What does `delayed` mean?               | word meaning, collocation                           |
-| Writing       | Short paragraph                          | `Write 4-5 sentences about a problem you solved last week.`                         | articles, plurals, tense, sentence control, clarity |
-| Speaking      | Recorded short answer                    | `Tell me about something you bought recently. What was it, and why did you buy it?` | task completion, clarity, fluency, grammar/control  |
+| Area          | Prototype task                           | Example                                                                             | Signals to capture                                                                                                                  |
+| ------------- | ---------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Listening     | Short audio, two comprehension choices   | `What time will Mei meet her coworker?`                                             | main idea, detail                                                                                                                   |
+| Reading       | Short passage, two comprehension choices | `Why did the customer return the shoes?`                                            | main idea, detail, vocabulary-in-context                                                                                            |
+| Grammar/usage | Fill in the blank                        | `She ____ to work every morning.` -> `go / goes / going`                            | verb form, subject-verb agreement                                                                                                   |
+| Vocabulary    | Word in context                          | `The train was delayed, so I arrived late.` What does `delayed` mean?               | word meaning, collocation                                                                                                           |
+| Writing       | Short paragraph                          | `Write 4-5 sentences about a problem you solved last week.`                         | articles, plurals, tense, sentence control, clarity                                                                                 |
+| Speaking      | Recorded short answer                    | `Tell me about something you bought recently. What was it, and why did you buy it?` | Workers AI transcription plus transcript-level task completion, clarity, grammar/control, vocabulary misuse, and fluency indicators |
 
 Question screen pattern:
 
@@ -174,4 +174,5 @@ The first complete loop should feel like a short diagnostic handoff into study:
 the Learner starts with a plain promise, answers one simple task per assessed
 area, sees separate Skill Bands with concrete missed-answer examples, then
 starts one Adaptive Practice problem targeted to the strongest observed Error
-Signal. Defer a full curriculum, a placement score, and polished analytics.
+Signal. Defer pronunciation scoring, a dedicated speech-scoring provider, a full
+curriculum, a placement score, and polished analytics.
