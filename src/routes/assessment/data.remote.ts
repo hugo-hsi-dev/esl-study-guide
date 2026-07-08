@@ -1,6 +1,11 @@
 import { form, query } from '$app/server';
 import { invalid } from '@sveltejs/kit';
 import {
+	generatePracticeProblem,
+	getLatestPracticeProblem,
+	savePracticeAttempt
+} from '$lib/server/adaptive-practice';
+import {
 	AssessmentAttemptInputError,
 	saveAssessmentAttempt
 } from '$lib/server/assessment-attempts';
@@ -18,6 +23,10 @@ type AssessmentFormInput = {
 	responses?: AssessmentResponseInput[];
 };
 
+type PracticeFormInput = {
+	answer?: string;
+};
+
 const toAssessmentFormData = (data: AssessmentFormInput) => {
 	const formData = new FormData();
 
@@ -32,9 +41,13 @@ const toAssessmentFormData = (data: AssessmentFormInput) => {
 	return formData;
 };
 
-export const getAssessmentPage = query(() => {
+export const getAssessmentPage = query(async () => {
 	const user = requireRole('learner');
-	return { learnerName: user.name, items: getLearnerAssessmentItems() };
+	return {
+		learnerName: user.name,
+		items: getLearnerAssessmentItems(),
+		practice: await getLatestPracticeProblem(getDb(), user.id)
+	};
 });
 
 export const submitAssessment = form('unchecked', async (data: AssessmentFormInput) => {
@@ -47,10 +60,25 @@ export const submitAssessment = form('unchecked', async (data: AssessmentFormInp
 			attemptId: attempt.id,
 			status: attempt.status,
 			skillProfile: attempt.skillProfile,
-			studyPlan: attempt.studyPlan
+			studyPlan: attempt.studyPlan,
+			practice: {
+				assessmentAttemptId: attempt.id,
+				problem: generatePracticeProblem(attempt.skillProfile, attempt.studyPlan)
+			}
 		};
 	} catch (error) {
 		if (error instanceof AssessmentAttemptInputError) invalid(error.message);
 		throw error;
 	}
+});
+
+export const submitPractice = form('unchecked', async (data: PracticeFormInput) => {
+	const user = requireRole('learner');
+	const answer = typeof data.answer === 'string' ? data.answer : '';
+	if (!answer) invalid('Choose an answer.');
+
+	const result = await savePracticeAttempt(getDb(), user.id, answer);
+	if (!result) invalid('Complete an assessment before practice.');
+
+	return result;
 });

@@ -1,42 +1,27 @@
-# sv
+# ESL Study Guide
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+SvelteKit app for an ESL assessment and adaptive practice loop, backed by Cloudflare D1.
 
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
+## Development
 
 ```sh
-# create a new project
-npx sv create my-app
+corepack enable
+pnpm install --frozen-lockfile
+pnpm gen
+pnpm db:push
+pnpm dev
 ```
 
-To recreate this project with the same configuration:
+`pnpm db:push` applies Drizzle-generated migrations to the local D1 database. Local D1 state lives under `.wrangler/state`, so each git worktree gets its own database.
+
+## Common Commands
 
 ```sh
-# recreate this project
-pnpm dlx sv@0.16.2 create --template minimal --types ts --add prettier eslint vitest="usages:unit,component" playwright tailwindcss="plugins:none" sveltekit-adapter="adapter:cloudflare+cfTarget:workers" drizzle="database:sqlite+sqlite:libsql" better-auth="demo:password,github" experimental="versions:kit+features:async,remoteFunctions,explicitEnvironmentVariables,handleRenderingErrors,forkPreloads" --install pnpm .
+pnpm check
+pnpm lint
+pnpm test
+pnpm build
+pnpm preview
 ```
 
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+Use `pnpm db:generate` after changing `src/lib/server/db/schema.ts`.

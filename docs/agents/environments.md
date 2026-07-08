@@ -16,8 +16,8 @@ Name: `ESL Study Guide`
 
 Runtime/package versions:
 
-- Node.js: `24`
-- Package manager: `pnpm 11.7.0`
+- Node.js: active LTS
+- Package manager: `pnpm` via Corepack
 
 Environment variables available to setup and agent phases:
 
@@ -27,7 +27,6 @@ BETTER_AUTH_SECRET=0123456789abcdef0123456789abcdef
 GITHUB_CLIENT_ID=test-client-id
 GITHUB_CLIENT_SECRET=test-client-secret
 ADMIN_EMAILS=admin@example.com
-DATABASE_URL=file:local.db
 ```
 
 Use dummy auth values in the agent environment. Codex cloud secrets are only available to setup scripts, so values required by `pnpm build`, `pnpm check`, `pnpm test`, or `pnpm preview` must be regular environment variables.
@@ -50,7 +49,6 @@ Default setup script:
 ```sh
 set -euo pipefail
 corepack enable
-corepack prepare pnpm@11.7.0 --activate
 pnpm install --frozen-lockfile
 pnpm gen
 pnpm exec playwright install chromium
@@ -61,9 +59,9 @@ Maintenance script:
 ```sh
 set -euo pipefail
 corepack enable
-corepack prepare pnpm@11.7.0 --activate
 pnpm install --frozen-lockfile
 pnpm gen
+pnpm db:push
 ```
 
 Do not run `pnpm db:push` in the default cloud setup. Use a separate, explicit D1-maintenance environment if a task is specifically about remote D1 schema work.
@@ -103,9 +101,9 @@ Setup script:
 ```sh
 set -euo pipefail
 corepack enable
-corepack prepare pnpm@11.7.0 --activate
 pnpm install --frozen-lockfile
 pnpm gen
+pnpm db:push
 ```
 
 Cleanup script:
@@ -114,7 +112,7 @@ Cleanup script:
 true
 ```
 
-No cleanup is currently needed. Codex removes managed worktrees on archive, and this project does not start Docker containers or other external services in setup.
+No cleanup is currently needed. Codex removes managed worktrees on archive, including the local D1 state under `.wrangler/`, and this project does not start Docker containers or other external services in setup.
 
 Actions:
 

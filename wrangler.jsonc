@@ -12,7 +12,8 @@
 		{
 			"binding": "DB",
 			"database_name": "esl-study-guide",
-			"database_id": "00000000-0000-0000-0000-000000000000"
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "drizzle"
 		}
 	],
 	"workers_dev": true,

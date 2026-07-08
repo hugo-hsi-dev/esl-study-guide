@@ -22,6 +22,13 @@
       "when": 1783528803353,
       "tag": "0002_thin_harpoon",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783529184194,
+      "tag": "0003_chemical_hairball",
+      "breakpoints": true
     }
   ]
 }

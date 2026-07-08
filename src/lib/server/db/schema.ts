@@ -1,6 +1,11 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { user } from './auth.schema';
+import type {
+	PracticeFeedback,
+	PracticeMetadata,
+	PracticeProblem
+} from '$lib/server/adaptive-practice';
 import type { SkillProfile, StudyPlan, DiagnosisMetadata } from '$lib/server/assessment-diagnosis';
 import type { AssessmentArea } from '$lib/server/assessment-items';
 
@@ -66,6 +71,33 @@ export const assessmentAttempt = sqliteTable(
 	},
 	(table) => [
 		index('assessment_attempt_learner_created_idx').on(table.learnerUserId, table.createdAt)
+	]
+);
+
+export const practiceAttempt = sqliteTable(
+	'practice_attempt',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		learnerUserId: text('learner_user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		assessmentAttemptId: text('assessment_attempt_id')
+			.notNull()
+			.references(() => assessmentAttempt.id, { onDelete: 'cascade' }),
+		practiceProblemJson: text('practice_problem_json', { mode: 'json' })
+			.$type<PracticeProblem>()
+			.notNull(),
+		answer: text('answer').notNull(),
+		feedbackJson: text('feedback_json', { mode: 'json' }).$type<PracticeFeedback>().notNull(),
+		metadataJson: text('metadata_json', { mode: 'json' }).$type<PracticeMetadata>().notNull(),
+		createdAt: integer('created_at', { mode: 'timestamp_ms' })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull()
+	},
+	(table) => [
+		index('practice_attempt_learner_created_idx').on(table.learnerUserId, table.createdAt)
 	]
 );
 
