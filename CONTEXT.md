@@ -8,6 +8,10 @@ Domain language for an ESL assessment study tool for a Chinese-literate learner.
 A single young adult Chinese-literate English learner with uneven beginner skills: usable basic spoken English, but heavy difficulty with grammar, pronunciation, reading comprehension, and writing beyond a few sentences. The MVP is not planned for broader learner segments.
 _Avoid_: Student, user, generic ESL learner
 
+**Admin**:
+The owner account that can view the learner's assessment and study data in a read-only way for MVP support and progress review.
+_Avoid_: Teacher, tutor, content editor
+
 **Skill Diagnosis**:
 An assessment result that identifies the learner's current strengths and weaknesses so the tool can choose what to practice next.
 _Avoid_: Placement, grading, exam score
