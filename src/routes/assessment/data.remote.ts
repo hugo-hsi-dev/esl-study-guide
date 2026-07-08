@@ -1,5 +1,6 @@
 import { form, query } from '$app/server';
 import { invalid } from '@sveltejs/kit';
+import { z } from 'zod';
 import {
 	generatePracticeProblem,
 	getLatestPracticeProblem,
@@ -13,19 +14,23 @@ import { getLearnerAssessmentItems } from '$lib/server/assessment-items';
 import { getDb } from '$lib/server/db';
 import { requireRole } from '$lib/server/roles';
 
-type AssessmentResponseInput = {
-	itemId?: string;
-	answer?: string;
-	speakingSeconds?: number;
-};
+const assessmentFormSchema = z.object({
+	responses: z
+		.array(
+			z.object({
+				itemId: z.string(),
+				answer: z.string().optional(),
+				speakingSeconds: z.number().optional()
+			})
+		)
+		.optional()
+});
 
-type AssessmentFormInput = {
-	responses?: AssessmentResponseInput[];
-};
+const practiceFormSchema = z.object({
+	answer: z.string().optional()
+});
 
-type PracticeFormInput = {
-	answer?: string;
-};
+type AssessmentFormInput = z.infer<typeof assessmentFormSchema>;
 
 const toAssessmentFormData = (data: AssessmentFormInput) => {
 	const formData = new FormData();
@@ -50,7 +55,7 @@ export const getAssessmentPage = query(async () => {
 	};
 });
 
-export const submitAssessment = form('unchecked', async (data: AssessmentFormInput) => {
+export const submitAssessment = form(assessmentFormSchema, async (data) => {
 	const user = requireRole('learner');
 
 	try {
@@ -72,9 +77,9 @@ export const submitAssessment = form('unchecked', async (data: AssessmentFormInp
 	}
 });
 
-export const submitPractice = form('unchecked', async (data: PracticeFormInput) => {
+export const submitPractice = form(practiceFormSchema, async (data) => {
 	const user = requireRole('learner');
-	const answer = typeof data.answer === 'string' ? data.answer : '';
+	const answer = data.answer ?? '';
 	if (!answer) invalid('Choose an answer.');
 
 	const result = await savePracticeAttempt(getDb(), user.id, answer);
