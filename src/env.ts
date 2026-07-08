@@ -39,14 +39,14 @@ export const variables = defineEnvVars({
 	},
 	WORKERS_AI_TEXT_MODEL_ID: {
 		description: 'Configurable Workers AI text model ID for feedback and practice generation.',
-		schema: requiredUnlessBuilding
+		schema: z.string().default('@cf/zai-org/glm-4.7-flash')
 	},
 	WORKERS_AI_TRANSCRIPTION_MODEL_ID: {
 		description: 'Configurable Workers AI transcription model ID for speaking feedback.',
-		schema: requiredUnlessBuilding
+		schema: z.string().default('@cf/openai/whisper-large-v3-turbo')
 	},
 	WORKERS_AI_TTS_MODEL_ID: {
 		description: 'Configurable Workers AI text-to-speech model ID for listening prompts.',
-		schema: requiredUnlessBuilding
+		schema: z.string().default('@cf/myshell-ai/melotts')
 	}
 });

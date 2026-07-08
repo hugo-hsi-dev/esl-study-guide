@@ -12,11 +12,15 @@
 
 	<nav class="flex flex-wrap gap-3">
 		<a class="rounded bg-zinc-950 px-4 py-2 font-medium text-white" href="/login">Sign in</a>
-		<a class="rounded border border-zinc-300 px-4 py-2 font-medium text-zinc-950" href="/assessment"
-			>Learner</a
+		<a
+			class="rounded border border-zinc-300 px-4 py-2 font-medium text-zinc-950"
+			data-sveltekit-preload-data="off"
+			href="/assessment">Learner</a
 		>
-		<a class="rounded border border-zinc-300 px-4 py-2 font-medium text-zinc-950" href="/admin"
-			>Admin</a
+		<a
+			class="rounded border border-zinc-300 px-4 py-2 font-medium text-zinc-950"
+			data-sveltekit-preload-data="off"
+			href="/admin">Admin</a
 		>
 	</nav>
 </main>
