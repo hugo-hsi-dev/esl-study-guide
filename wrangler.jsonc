@@ -8,6 +8,13 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "esl-study-guide",
+			"database_id": "00000000-0000-0000-0000-000000000000"
+		}
+	],
 	"workers_dev": true,
 	"preview_urls": true
 }

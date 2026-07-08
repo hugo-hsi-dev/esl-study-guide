@@ -1,10 +1,10 @@
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
+import { getRequestEvent } from '$app/server';
+import { drizzle } from 'drizzle-orm/d1';
 import * as schema from './schema';
-import { DATABASE_URL } from '$app/env/private';
 
-if (!DATABASE_URL) throw new Error('DATABASE_URL is not set');
+export const getDb = (database = getRequestEvent().platform?.env.DB) => {
+	if (!database) throw new Error('Cloudflare D1 binding DB is not available');
+	return drizzle(database, { schema });
+};
 
-const client = createClient({ url: DATABASE_URL });
-
-export const db = drizzle(client, { schema });
+export type Db = ReturnType<typeof getDb>;
