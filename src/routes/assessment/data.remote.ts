@@ -81,7 +81,11 @@ export const submitAssessment = form(assessmentFormSchema, async (data) => {
 			studyPlan: attempt.studyPlan,
 			practice: {
 				assessmentAttemptId: attempt.id,
-				...(await generatePracticeProblem(attempt.skillProfile, attempt.studyPlan))
+				...(await generatePracticeProblem({
+					skillProfile: attempt.skillProfile,
+					studyPlan: attempt.studyPlan,
+					recentResponses: attempt.responses
+				}))
 			}
 		};
 	} catch (error) {
