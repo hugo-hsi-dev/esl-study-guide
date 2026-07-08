@@ -18,5 +18,8 @@ export const variables = defineEnvVars({
 	},
 	ADMIN_EMAILS: {
 		description: 'Comma-separated emails that should receive the Admin role on account creation.'
+	},
+	WORKERS_AI_TTS_MODEL_ID: {
+		description: 'Configurable Workers AI text-to-speech model ID for listening prompts.'
 	}
 });

@@ -43,6 +43,11 @@ type AssessmentItem = {
 	rubric?: string[];
 	choices?: Choice[];
 	serverOnlyAudioScript?: string;
+	serverOnlyAudioMetadata?: {
+		provider: 'workers-ai';
+		model: '@cf/myshell-ai/melotts';
+		schemaVersion: 1;
+	};
 	learnerTask: {
 		instructions: string;
 		choices?: Choice[];
@@ -53,7 +58,7 @@ type AssessmentItem = {
 export type LearnerAssessmentItem = Pick<
 	AssessmentItem,
 	'id' | 'version' | 'area' | 'taskType' | 'prompt' | 'errorSignalTags' | 'learnerTask'
->;
+> & { audioUrl?: string };
 
 export const seedAssessmentItems = [
 	{
@@ -71,6 +76,11 @@ export const seedAssessmentItems = [
 			{ id: 'c', text: 'At 9:30.' }
 		],
 		serverOnlyAudioScript: 'Mei says, "I will meet my coworker at eight fifty near the station."',
+		serverOnlyAudioMetadata: {
+			provider: 'workers-ai',
+			model: '@cf/myshell-ai/melotts',
+			schemaVersion: 1
+		},
 		learnerTask: {
 			instructions: 'Listen to the audio. What time will Mei meet her coworker?',
 			choices: [
@@ -252,16 +262,38 @@ export function getSeedAssessmentItems() {
 
 export function getLearnerAssessmentItems(): LearnerAssessmentItem[] {
 	return getSeedAssessmentItems().map(
-		({ id, version, area, taskType, prompt, errorSignalTags, learnerTask }) => ({
+		({
 			id,
 			version,
 			area,
 			taskType,
 			prompt,
 			errorSignalTags,
-			learnerTask
+			learnerTask,
+			serverOnlyAudioScript
+		}) => ({
+			id,
+			version,
+			area,
+			taskType,
+			prompt,
+			errorSignalTags,
+			learnerTask,
+			...(serverOnlyAudioScript ? { audioUrl: `/assessment/audio/${id}` } : {})
 		})
 	);
+}
+
+export function getAssessmentItemAudioSource(itemId: string) {
+	const item = getSeedAssessmentItems().find((candidate) => candidate.id === itemId);
+	if (!item?.serverOnlyAudioScript || !item.serverOnlyAudioMetadata) return;
+
+	return {
+		itemId: item.id,
+		itemVersion: item.version,
+		script: item.serverOnlyAudioScript,
+		metadata: item.serverOnlyAudioMetadata
+	};
 }
 
 export function validateSeedAssessmentItems(items: readonly AssessmentItem[]) {
@@ -289,6 +321,10 @@ export function validateSeedAssessmentItems(items: readonly AssessmentItem[]) {
 
 		if (item.errorSignalTags.length === 0) {
 			throw new Error(`Assessment Item ${item.id} is missing Error Signal tags`);
+		}
+
+		if (item.serverOnlyAudioScript && !item.serverOnlyAudioMetadata) {
+			throw new Error(`Assessment Item ${item.id} is missing generated audio metadata`);
 		}
 
 		if (!item.answerKey?.length && !item.rubric?.length) {
