@@ -42,7 +42,13 @@ export const submitAssessment = form('unchecked', async (data: AssessmentFormInp
 
 	try {
 		const attempt = await saveAssessmentAttempt(getDb(), user.id, toAssessmentFormData(data));
-		return { saved: true, attemptId: attempt.id, status: attempt.status };
+		return {
+			saved: true,
+			attemptId: attempt.id,
+			status: attempt.status,
+			skillProfile: attempt.skillProfile,
+			studyPlan: attempt.studyPlan
+		};
 	} catch (error) {
 		if (error instanceof AssessmentAttemptInputError) invalid(error.message);
 		throw error;

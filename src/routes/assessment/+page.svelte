@@ -19,9 +19,54 @@
 			<section class="space-y-2 border-l-4 border-teal-600 bg-teal-50 px-5 py-4">
 				<h2 class="text-xl font-semibold text-zinc-950">Assessment saved</h2>
 				<p class="text-zinc-700">
-					Attempt {submitAssessment.result.attemptId} is pending Skill Diagnosis. Results will appear
-					after diagnosis is available.
+					Attempt {submitAssessment.result.attemptId} has a Skill Profile and Study Plan.
 				</p>
+			</section>
+
+			<section class="space-y-5 border-t border-zinc-200 pt-6">
+				<h2 class="text-2xl font-semibold text-zinc-950">Skill Profile</h2>
+				<div class="grid gap-3 sm:grid-cols-2">
+					{#each Object.entries(submitAssessment.result.skillProfile.skillBands) as [area, band] (area)}
+						<div class="rounded border border-zinc-200 p-3">
+							<p class="text-sm font-medium uppercase text-teal-700">{area.replace('_', '/')}</p>
+							<p class="text-lg font-semibold text-zinc-950">{band}</p>
+						</div>
+					{/each}
+				</div>
+
+				{#if submitAssessment.result.skillProfile.priorityWeaknesses.length}
+					<div class="space-y-2">
+						<h3 class="text-xl font-semibold text-zinc-950">Practice first</h3>
+						<ol class="list-decimal space-y-1 pl-5 text-zinc-700">
+							{#each submitAssessment.result.skillProfile.priorityWeaknesses as weakness (`${weakness.area}-${weakness.signal}`)}
+								<li>{weakness.reason}</li>
+							{/each}
+						</ol>
+					</div>
+				{/if}
+
+				{#if submitAssessment.result.skillProfile.missedAnswerExamples.length}
+					<div class="space-y-2">
+						<h3 class="text-xl font-semibold text-zinc-950">Missed-answer examples</h3>
+						{#each submitAssessment.result.skillProfile.missedAnswerExamples as example (example.itemId)}
+							<div class="rounded border border-zinc-200 p-3 text-sm text-zinc-700">
+								<p class="font-medium text-zinc-950">{example.area.replace('_', '/')}</p>
+								<p>You answered: {example.learnerAnswer}</p>
+								<p>Expected: {example.expectedAnswer}</p>
+								<p>{example.explanation}</p>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				<div class="space-y-2">
+					<h3 class="text-xl font-semibold text-zinc-950">Study Plan</h3>
+					<ul class="list-disc space-y-1 pl-5 text-zinc-700">
+						{#each submitAssessment.result.studyPlan.today as task (task)}
+							<li>{task}</li>
+						{/each}
+					</ul>
+				</div>
 			</section>
 		{/if}
 

@@ -1,5 +1,6 @@
 import { assessmentAttempt, type AttemptResponse, type AttemptSelectedItem } from './db/schema';
 import type { Db } from './db';
+import { diagnoseAssessmentAttempt } from './assessment-diagnosis';
 import { getLearnerAssessmentItems, type AssessmentArea } from './assessment-items';
 
 const requiredAreas = new Set<AssessmentArea>([
@@ -83,14 +84,18 @@ export async function saveAssessmentAttempt(
 ) {
 	const id = crypto.randomUUID();
 	const payload = buildAssessmentAttemptPayload(formData);
+	const diagnosis = diagnoseAssessmentAttempt(payload);
 
 	await db.insert(assessmentAttempt).values({
 		id,
 		learnerUserId,
-		status: 'pending_skill_diagnosis',
+		status: 'skill_diagnosed',
 		selectedItemsJson: payload.selectedItems,
-		responsesJson: payload.responses
+		responsesJson: payload.responses,
+		skillProfileJson: diagnosis.skillProfile,
+		studyPlanJson: diagnosis.studyPlan,
+		diagnosisMetadataJson: diagnosis.diagnosisMetadata
 	});
 
-	return { id, status: 'pending_skill_diagnosis' as const, ...payload };
+	return { id, status: 'skill_diagnosed' as const, ...payload, ...diagnosis };
 }

@@ -1,9 +1,10 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 import { user } from './auth.schema';
+import type { SkillProfile, StudyPlan, DiagnosisMetadata } from '$lib/server/assessment-diagnosis';
 import type { AssessmentArea } from '$lib/server/assessment-items';
 
-export type AssessmentAttemptStatus = 'pending_skill_diagnosis';
+export type AssessmentAttemptStatus = 'pending_skill_diagnosis' | 'skill_diagnosed';
 
 export type AttemptSelectedItem = {
 	id: string;
@@ -54,6 +55,11 @@ export const assessmentAttempt = sqliteTable(
 			.$type<AttemptSelectedItem[]>()
 			.notNull(),
 		responsesJson: text('responses_json', { mode: 'json' }).$type<AttemptResponse[]>().notNull(),
+		skillProfileJson: text('skill_profile_json', { mode: 'json' }).$type<SkillProfile>(),
+		studyPlanJson: text('study_plan_json', { mode: 'json' }).$type<StudyPlan>(),
+		diagnosisMetadataJson: text('diagnosis_metadata_json', {
+			mode: 'json'
+		}).$type<DiagnosisMetadata>(),
 		createdAt: integer('created_at', { mode: 'timestamp_ms' })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull()

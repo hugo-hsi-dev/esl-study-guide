@@ -15,6 +15,13 @@
       "when": 1783522524636,
       "tag": "0001_overjoyed_mikhail_rasputin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783528803353,
+      "tag": "0002_thin_harpoon",
+      "breakpoints": true
     }
   ]
 }
