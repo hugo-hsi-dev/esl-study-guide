@@ -6,6 +6,12 @@
 
 ---
 
+## Svelte syntax
+
+Follow the official SvelteKit Remote functions, Svelte await expressions, and Svelte declaration tags docs. Use async Svelte with remote functions and direct `await` expressions, not `{#await}` wrappers. Use `{const ...}` / `{let ...}` declaration tags, not `{@const}`. Verify with `rg '\{#await|\{@const' src/routes src/lib` and the Svelte MCP autofixer in async mode for changed `.svelte` files.
+
+---
+
 ## Agent skills
 
 ### Issue tracker
