@@ -76,7 +76,8 @@
 		<section class="space-y-4 border-t border-zinc-200 pt-6">
 			<div class="space-y-2">
 				<p class="text-sm font-medium uppercase text-teal-700">
-					Focus: {practice.problem.targetSignal.replaceAll('_', ' ')}
+					Focus: {practice.problem.targetArea.replace('_', '/')} -
+					{practice.problem.targetSignal.replaceAll('_', ' ')}
 				</p>
 				<h2 class="text-2xl font-semibold text-zinc-950">Practice Problem</h2>
 				<p class="text-zinc-700">{practice.problem.prompt}</p>
