@@ -24,9 +24,12 @@ Environment variables available to setup and agent phases:
 ```sh
 ORIGIN=http://localhost:4173
 BETTER_AUTH_SECRET=0123456789abcdef0123456789abcdef
-GITHUB_CLIENT_ID=test-client-id
-GITHUB_CLIENT_SECRET=test-client-secret
-ADMIN_EMAILS=admin@example.com
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin-password
+ADMIN_NAME="Test Admin"
+LEARNER_USERNAME=learner
+LEARNER_PASSWORD=learner-password
+LEARNER_NAME="Test Learner"
 ```
 
 Use dummy auth values in the agent environment. Codex cloud secrets are only available to setup scripts, so values required by `pnpm build`, `pnpm check`, `pnpm test`, or `pnpm preview` must be regular environment variables.
@@ -69,6 +72,7 @@ corepack enable
 pnpm install --frozen-lockfile
 pnpm gen
 pnpm db:push
+pnpm auth:seed
 ```
 
 Do not run `pnpm db:push` in the default cloud setup. Use a separate, explicit D1-maintenance environment if a task is specifically about remote D1 schema work.
@@ -137,3 +141,12 @@ Actions:
 | Preview | globe    | `pnpm build && pnpm preview`   |
 
 Ignored local files copied into Codex-managed worktrees are listed in `.worktreeinclude`. Create `.env` in the source checkout before creating a managed worktree. Tracked files such as `.env.example`, `pnpm-lock.yaml`, and `wrangler.jsonc` are already present in each worktree.
+
+The seed script derives internal Better Auth email-column values from `ADMIN_USERNAME` and `LEARNER_USERNAME`. Those synthetic emails are implementation details only; setup and login stay username/password-only.
+
+For remote D1 maintenance, set the fixed account variables and Cloudflare D1 credentials, then run:
+
+```sh
+pnpm db:push:remote
+pnpm auth:seed:remote
+```

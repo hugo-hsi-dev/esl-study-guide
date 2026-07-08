@@ -5,16 +5,21 @@ import { Redirect } from '@sveltejs/kit/internal';
 
 export const accountRoles = ['learner', 'admin'] as const;
 export type AccountRole = (typeof accountRoles)[number];
+export type FixedAccounts = { adminUsername: string; learnerUsername: string };
 
-export const roleForEmail = (email: string, adminEmails: string): AccountRole => {
-	const normalized = email.trim().toLowerCase();
-	const admins = adminEmails
-		.split(',')
-		.map((value) => value.trim().toLowerCase())
-		.filter(Boolean);
+export const normalizeUsername = (username: string) => username.trim().toLowerCase();
 
-	return admins.includes(normalized) ? 'admin' : 'learner';
+export const roleForUsername = (
+	username: string,
+	accounts: FixedAccounts
+): AccountRole | undefined => {
+	const normalized = normalizeUsername(username);
+	if (normalized === normalizeUsername(accounts.adminUsername)) return 'admin';
+	if (normalized === normalizeUsername(accounts.learnerUsername)) return 'learner';
 };
+
+export const isAllowedAccountUsername = (username: string, accounts: FixedAccounts) =>
+	roleForUsername(username, accounts) !== undefined;
 
 export const getAccountRole = (user: { role?: string | null }): AccountRole | undefined => {
 	if (user.role === 'admin' || user.role === 'learner') return user.role;

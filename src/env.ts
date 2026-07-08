@@ -14,18 +14,28 @@ export const variables = defineEnvVars({
 			'Secret used to sign tokens. For production use 32 characters generated with high entropy. See [Better Auth installation](https://www.better-auth.com/docs/installation).',
 		schema: requiredUnlessBuilding
 	},
-	GITHUB_CLIENT_ID: {
-		description:
-			'Optional GitHub OAuth client ID. See [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github).',
-		schema: z.string().optional()
+	ADMIN_USERNAME: {
+		description: 'Username for the fixed seeded Admin test account.',
+		schema: requiredUnlessBuilding
 	},
-	GITHUB_CLIENT_SECRET: {
-		description:
-			'Optional GitHub OAuth client secret. See [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github).',
-		schema: z.string().optional()
+	ADMIN_PASSWORD: {
+		description: 'Password for the fixed seeded Admin test account.',
+		schema: requiredUnlessBuilding
 	},
-	ADMIN_EMAILS: {
-		description: 'Comma-separated emails that should receive the Admin role on account creation.',
+	ADMIN_NAME: {
+		description: 'Display name for the fixed seeded Admin test account.',
+		schema: requiredUnlessBuilding
+	},
+	LEARNER_USERNAME: {
+		description: 'Username for the fixed seeded Learner test account.',
+		schema: requiredUnlessBuilding
+	},
+	LEARNER_PASSWORD: {
+		description: 'Password for the fixed seeded Learner test account.',
+		schema: requiredUnlessBuilding
+	},
+	LEARNER_NAME: {
+		description: 'Display name for the fixed seeded Learner test account.',
 		schema: requiredUnlessBuilding
 	},
 	CLOUDFLARE_ACCOUNT_ID: {
