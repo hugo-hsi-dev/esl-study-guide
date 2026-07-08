@@ -74,10 +74,10 @@ describe('savePracticeAttempt', () => {
 		expect(row.metadataJson).toMatchObject({ model: 'deterministic-practice', schemaVersion: 1 });
 	});
 
-	it('generates a validated problem from the top target signal', () => {
+	it('generates a validated problem from the top target signal', async () => {
 		expect.assertions(2);
 
-		const problem = generatePracticeProblem({
+		const { problem } = await generatePracticeProblem({
 			skillProfile: {
 				skillBands: {
 					listening: 'functional',
@@ -92,7 +92,11 @@ describe('savePracticeAttempt', () => {
 				rubricOutputs: {
 					writing: { score: 1, signals: [], feedback: 'ok' },
 					speaking: { score: 1, signals: [], feedback: 'ok' },
-					pronunciation: { score: null, signals: [], feedback: 'No audio.' }
+					pronunciation: {
+						score: null,
+						signals: [],
+						feedback: 'Pronunciation scoring is deferred.'
+					}
 				}
 			},
 			studyPlan: { today: [], thisWeek: [], targetSignals: ['verb_form'] },

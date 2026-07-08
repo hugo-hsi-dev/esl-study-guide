@@ -78,7 +78,8 @@ describe('saveAssessmentAttempt', () => {
 		expect(row.skillProfileJson.rubricOutputs.pronunciation).toEqual({
 			score: null,
 			signals: [],
-			feedback: 'No learner audio file is available for pronunciation judgment.'
+			feedback:
+				'Pronunciation scoring is deferred; speaking feedback uses transcript-level surface analysis.'
 		});
 		expect(row.studyPlanJson.today.length).toBeGreaterThan(0);
 		expect(row.diagnosisMetadataJson).toMatchObject({

@@ -31,16 +31,23 @@ ADMIN_EMAILS=admin@example.com
 
 Use dummy auth values in the agent environment. Codex cloud secrets are only available to setup scripts, so values required by `pnpm build`, `pnpm check`, `pnpm test`, or `pnpm preview` must be regular environment variables.
 
+Optional Workers AI variables for live provider work:
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=<account id for opt-in ai/run checks>
+CLOUDFLARE_API_TOKEN=<token with Workers AI permissions for opt-in ai/run checks>
+WORKERS_AI_TEXT_MODEL_ID=@cf/zai-org/glm-4.7-flash
+WORKERS_AI_TRANSCRIPTION_MODEL_ID=@cf/openai/whisper-large-v3-turbo
+WORKERS_AI_TTS_MODEL_ID=@cf/myshell-ai/melotts
+```
+
+The deployed app should prefer the Workers AI binding (`env.AI.run`). Use REST `ai/run` only for opt-in checks outside the Worker binding path. Local and test runs use deterministic stubs when the binding or live credentials are absent. Do not add AI Gateway rerouting, direct provider SDKs, or direct provider API keys to the MVP app. Scope `CLOUDFLARE_API_TOKEN` to the task-specific environment.
+
 Optional Cloudflare variables for a separate D1-maintenance environment:
 
 ```sh
 CLOUDFLARE_ACCOUNT_ID=<account id>
 CLOUDFLARE_D1_DATABASE_ID=<database id>
-```
-
-Secret for that D1-maintenance environment only:
-
-```sh
 CLOUDFLARE_API_TOKEN=<token with D1 permissions>
 ```
 
@@ -74,6 +81,7 @@ Internet access:
 
 ```text
 api.github.com
+api.cloudflare.com
 better-auth.com
 developers.cloudflare.com
 developers.openai.com

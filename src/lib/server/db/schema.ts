@@ -40,6 +40,13 @@ export type AttemptResponse =
 			metadata: {
 				representedBy: 'temporary_metadata';
 				responseSeconds: number;
+				transcript?: string;
+				transcriptSource?: 'workers_ai_asr' | 'submitted';
+				transcriptionMetadata?: {
+					provider: 'workers-ai';
+					model: string;
+					modelVersion: '2026-07-08';
+				};
 			};
 	  };
 

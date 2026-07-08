@@ -20,6 +20,10 @@ _Avoid_: Placement, grading, exam score
 A broad diagnostic flow covering listening, reading, writing, speaking, grammar/usage, and vocabulary so the tool can build a study path. It is a gateway into study and a periodic check-in, not the whole product.
 _Avoid_: Practice test app, exam prep test
 
+**Speaking Feedback**:
+MVP speaking feedback uses Workers AI transcription plus transcript-level surface analysis for grammar errors, vocabulary misuse, clarity, task completion, and related observable issues. Pronunciation scoring is deferred.
+_Avoid_: Pronunciation score, dedicated speech-scoring provider
+
 **Skill Profile**:
 A lightweight post-assessment summary of the learner's skill bands, priority weaknesses, missed-answer examples, and plain-language explanations.
 _Avoid_: Grade level, CEFR score, report card
@@ -51,3 +55,7 @@ _Avoid_: Lesson, course unit, worksheet
 **Adaptive Practice**:
 Practice problems generated on demand by AI in response to the learner's skill diagnosis and recent answers.
 _Avoid_: Static drill set, full curriculum, AI grading
+
+**MVP AI Provider**:
+The MVP AI path uses Workers AI catalog models directly through the Worker AI binding or REST `ai/run`, with configurable model IDs for text feedback/generation, transcription, and text-to-speech. When Workers AI bindings or credentials are absent, local and test paths use deterministic stubs.
+_Avoid_: AI Gateway rerouting, direct provider SDK, direct provider API key, dedicated speech-scoring credential

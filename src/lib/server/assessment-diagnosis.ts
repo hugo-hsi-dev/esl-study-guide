@@ -1,5 +1,7 @@
 import { getSeedAssessmentItems, type AssessmentArea, type ErrorSignal } from './assessment-items';
 import type { AttemptResponse, AttemptSelectedItem } from './db/schema';
+import { getWorkersAiRuntime, runWorkersAiJson } from './workers-ai';
+import { z } from 'zod';
 
 export type SkillBand = 'emerging' | 'developing' | 'functional' | 'strong';
 
@@ -29,7 +31,8 @@ export type StudyPlan = {
 
 export type DiagnosisMetadata = {
 	schemaVersion: 1;
-	model: 'deterministic-diagnosis';
+	provider: 'local' | 'workers-ai';
+	model: string;
 	modelVersion: '2026-07-08';
 	selectedItems: AttemptSelectedItem[];
 };
@@ -59,6 +62,86 @@ const signalLabel: Record<ErrorSignal, string> = {
 	fluency: 'fluency'
 };
 
+const assessmentAreas = [
+	'listening',
+	'reading',
+	'grammar_usage',
+	'vocabulary',
+	'writing',
+	'speaking'
+] as const satisfies readonly AssessmentArea[];
+const errorSignals = [
+	'main_idea',
+	'detail',
+	'vocabulary_in_context',
+	'verb_form',
+	'subject_verb_agreement',
+	'article_determiner',
+	'plural_countability',
+	'preposition',
+	'pronoun_choice',
+	'sentence_control',
+	'collocation',
+	'task_completion',
+	'clarity',
+	'fluency'
+] as const satisfies readonly ErrorSignal[];
+const skillBandSchema = z.enum(['emerging', 'developing', 'functional', 'strong']);
+const areaSchema = z.enum(assessmentAreas);
+const signalSchema = z.enum(errorSignals);
+const rubricSchema = z.object({
+	score: z.number().int().min(0).max(3),
+	signals: z.array(signalSchema),
+	feedback: z.string().trim().min(1).max(500)
+});
+const skillProfileSchema = z.object({
+	skillBands: z.object({
+		listening: skillBandSchema,
+		reading: skillBandSchema,
+		grammar_usage: skillBandSchema,
+		vocabulary: skillBandSchema,
+		writing: skillBandSchema,
+		speaking: skillBandSchema
+	}),
+	priorityWeaknesses: z
+		.array(
+			z.object({
+				area: areaSchema,
+				signal: signalSchema,
+				reason: z.string().trim().min(1).max(300)
+			})
+		)
+		.max(3),
+	missedAnswerExamples: z.array(
+		z.object({
+			area: areaSchema,
+			itemId: z.string().trim().min(1),
+			learnerAnswer: z.string(),
+			expectedAnswer: z.string(),
+			explanation: z.string().trim().min(1),
+			errorSignals: z.array(signalSchema)
+		})
+	),
+	rubricOutputs: z.object({
+		writing: rubricSchema,
+		speaking: rubricSchema,
+		pronunciation: z.object({
+			score: z.null(),
+			signals: z.array(signalSchema),
+			feedback: z.string().trim().min(1).max(500)
+		})
+	})
+}) satisfies z.ZodType<SkillProfile>;
+const studyPlanSchema = z.object({
+	today: z.array(z.string().trim().min(1).max(200)).max(5),
+	thisWeek: z.array(z.string().trim().min(1).max(200)).max(5),
+	targetSignals: z.array(signalSchema).max(5)
+}) satisfies z.ZodType<StudyPlan>;
+const aiDiagnosisSchema = z.object({
+	skillProfile: skillProfileSchema,
+	studyPlan: studyPlanSchema
+});
+
 const incrementSignals = (
 	counts: Map<ErrorSignal, number>,
 	areas: Map<ErrorSignal, AssessmentArea>,
@@ -71,7 +154,7 @@ const incrementSignals = (
 	}
 };
 
-export function diagnoseAssessmentAttempt({ selectedItems, responses }: DiagnosisInput): {
+function diagnoseAssessmentAttemptDeterministic({ selectedItems, responses }: DiagnosisInput): {
 	skillProfile: SkillProfile;
 	studyPlan: StudyPlan;
 	diagnosisMetadata: DiagnosisMetadata;
@@ -168,16 +251,71 @@ export function diagnoseAssessmentAttempt({ selectedItems, responses }: Diagnosi
 				pronunciation: {
 					score: null,
 					signals: [],
-					feedback: 'No learner audio file is available for pronunciation judgment.'
+					feedback:
+						'Pronunciation scoring is deferred; speaking feedback uses transcript-level surface analysis.'
 				}
 			}
 		},
 		studyPlan,
 		diagnosisMetadata: {
 			schemaVersion: 1,
+			provider: 'local',
 			model: 'deterministic-diagnosis',
 			modelVersion: '2026-07-08',
 			selectedItems
+		}
+	};
+}
+
+export async function diagnoseAssessmentAttempt(input: DiagnosisInput): Promise<{
+	skillProfile: SkillProfile;
+	studyPlan: StudyPlan;
+	diagnosisMetadata: DiagnosisMetadata;
+}> {
+	const deterministic = diagnoseAssessmentAttemptDeterministic(input);
+	const runtime = getWorkersAiRuntime();
+	if (!runtime) return deterministic;
+
+	const result = await runWorkersAiJson(
+		runtime,
+		[
+			{
+				role: 'system',
+				content:
+					'Return only JSON. Diagnose ESL assessment responses into the exact requested shape. Do not score pronunciation.'
+			},
+			{
+				role: 'user',
+				content: JSON.stringify({
+					requiredShape: {
+						skillProfile: 'SkillProfile',
+						studyPlan: 'StudyPlan'
+					},
+					allowedAreas: assessmentAreas,
+					allowedSignals: errorSignals,
+					allowedSkillBands: ['emerging', 'developing', 'functional', 'strong'],
+					notes: [
+						'Use objective answer correctness from the baseline.',
+						'Use writing text for writing rubric feedback.',
+						'Use speaking transcript when present; otherwise use duration metadata only.',
+						'Pronunciation score must be null with no pronunciation scoring.'
+					],
+					input,
+					baseline: deterministic
+				})
+			}
+		],
+		aiDiagnosisSchema
+	);
+
+	return {
+		...result,
+		diagnosisMetadata: {
+			schemaVersion: 1,
+			provider: runtime.provider,
+			model: runtime.textModelId,
+			modelVersion: '2026-07-08',
+			selectedItems: input.selectedItems
 		}
 	};
 }

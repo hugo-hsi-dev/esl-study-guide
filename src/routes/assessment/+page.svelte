@@ -84,6 +84,8 @@
 			</div>
 
 			<form {...submitPractice} class="space-y-4">
+				<input type="hidden" name="problemJson" value={JSON.stringify(practice.problem)} />
+				<input type="hidden" name="metadataJson" value={JSON.stringify(practice.metadata)} />
 				<div class="space-y-3">
 					{#each practice.problem.choices as choice (choice.id)}
 						<label class="flex gap-3 rounded border border-zinc-300 p-3">
@@ -128,7 +130,7 @@
 		</p>
 	{/each}
 
-	<form {...submitAssessment} class="space-y-8">
+	<form {...submitAssessment} class="space-y-8" enctype="multipart/form-data">
 		{#each data.items as item, index (item.id)}
 			<section class="space-y-4 border-t border-zinc-200 pt-6">
 				<input type="hidden" name={`responses[${index}].itemId`} value={item.id} />
@@ -175,7 +177,22 @@
 							required
 						/>
 					</label>
-					<p class="text-sm text-zinc-600">No learner audio file is stored.</p>
+					<label class="flex flex-col gap-1 text-sm font-medium text-zinc-800">
+						Transcript
+						<textarea
+							class="min-h-24 w-full rounded border border-zinc-300 px-3 py-2"
+							name={`responses[${index}].speakingTranscript`}></textarea>
+					</label>
+					<label class="flex flex-col gap-1 text-sm font-medium text-zinc-800">
+						Audio file
+						<input
+							class="rounded border border-zinc-300 px-3 py-2"
+							type="file"
+							name={`responses[${index}].speakingAudio`}
+							accept="audio/*"
+						/>
+					</label>
+					<p class="text-sm text-zinc-600">Audio is transcribed for feedback and is not stored.</p>
 				{/if}
 			</section>
 		{/each}
