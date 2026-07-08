@@ -276,37 +276,42 @@ export async function diagnoseAssessmentAttempt(input: DiagnosisInput): Promise<
 	const runtime = getWorkersAiRuntime();
 	if (!runtime) return deterministic;
 
-	const result = await runWorkersAiJson(
-		runtime,
-		[
-			{
-				role: 'system',
-				content:
-					'Return only JSON. Diagnose ESL assessment responses into the exact requested shape. Do not score pronunciation.'
-			},
-			{
-				role: 'user',
-				content: JSON.stringify({
-					requiredShape: {
-						skillProfile: 'SkillProfile',
-						studyPlan: 'StudyPlan'
-					},
-					allowedAreas: assessmentAreas,
-					allowedSignals: errorSignals,
-					allowedSkillBands: ['emerging', 'developing', 'functional', 'strong'],
-					notes: [
-						'Use objective answer correctness from the baseline.',
-						'Use writing text for writing rubric feedback.',
-						'Use speaking transcript when present; otherwise use duration metadata only.',
-						'Pronunciation score must be null with no pronunciation scoring.'
-					],
-					input,
-					baseline: deterministic
-				})
-			}
-		],
-		aiDiagnosisSchema
-	);
+	let result;
+	try {
+		result = await runWorkersAiJson(
+			runtime,
+			[
+				{
+					role: 'system',
+					content:
+						'Return only JSON. Diagnose ESL assessment responses into the exact requested shape. Do not score pronunciation.'
+				},
+				{
+					role: 'user',
+					content: JSON.stringify({
+						requiredShape: {
+							skillProfile: 'SkillProfile',
+							studyPlan: 'StudyPlan'
+						},
+						allowedAreas: assessmentAreas,
+						allowedSignals: errorSignals,
+						allowedSkillBands: ['emerging', 'developing', 'functional', 'strong'],
+						notes: [
+							'Use objective answer correctness from the baseline.',
+							'Use writing text for writing rubric feedback.',
+							'Use speaking transcript when present; otherwise use duration metadata only.',
+							'Pronunciation score must be null with no pronunciation scoring.'
+						],
+						input,
+						baseline: deterministic
+					})
+				}
+			],
+			aiDiagnosisSchema
+		);
+	} catch {
+		return deterministic;
+	}
 
 	return {
 		...result,

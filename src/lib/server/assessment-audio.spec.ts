@@ -18,7 +18,7 @@ describe('generateAssessmentAudio', () => {
 
 		expect(String.fromCharCode(...audio.bytes.slice(0, 4))).toBe('RIFF');
 		expect(audio.provider).toBe('deterministic-fixture');
-		expect(audio.model).toBe('@cf/myshell-ai/melotts');
+		expect(audio.model).toBe('@cf/deepgram/aura-2-en');
 		expect(response.headers.get('content-type')).toBe('audio/wav');
 		expect(response.headers.get('x-audio-schema-version')).toBe('1');
 		expect(response.headers.get('x-audio-item-version')).toBe('1');
@@ -30,5 +30,28 @@ describe('generateAssessmentAudio', () => {
 		expect(getWorkersAiTtsModelId({ WORKERS_AI_TTS_MODEL_ID: '@cf/example/tts' })).toBe(
 			'@cf/example/tts'
 		);
+	});
+
+	it('uses Aura text input and base64 output when configured', async () => {
+		expect.assertions(4);
+
+		const source = getAssessmentItemAudioSource('listen-mei-coworker-time');
+		if (!source) throw new Error('missing test audio source');
+
+		let call: { model: string; inputs: Record<string, unknown> } | undefined;
+		const audio = await generateAssessmentAudio(source, {
+			WORKERS_AI_TTS_MODEL_ID: '@cf/deepgram/aura-2-en',
+			AI: {
+				run: async (model, inputs) => {
+					call = { model, inputs };
+					return btoa('mp3');
+				}
+			}
+		});
+
+		expect(call?.model).toBe('@cf/deepgram/aura-2-en');
+		expect(call?.inputs).toEqual({ text: source.script, encoding: 'mp3' });
+		expect(audio.provider).toBe('workers-ai');
+		expect(new TextDecoder().decode(audio.bytes)).toBe('mp3');
 	});
 });

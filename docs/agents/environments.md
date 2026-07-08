@@ -39,9 +39,9 @@ Optional Workers AI variables for live provider work:
 ```sh
 CLOUDFLARE_ACCOUNT_ID=<account id for opt-in ai/run checks>
 CLOUDFLARE_API_TOKEN=<token with Workers AI permissions for opt-in ai/run checks>
-WORKERS_AI_TEXT_MODEL_ID=@cf/zai-org/glm-4.7-flash
+WORKERS_AI_TEXT_MODEL_ID=@cf/meta/llama-3.1-8b-instruct-fp8
 WORKERS_AI_TRANSCRIPTION_MODEL_ID=@cf/openai/whisper-large-v3-turbo
-WORKERS_AI_TTS_MODEL_ID=@cf/myshell-ai/melotts
+WORKERS_AI_TTS_MODEL_ID=@cf/deepgram/aura-2-en
 ```
 
 The deployed app should prefer the Workers AI binding (`env.AI.run`). Use REST `ai/run` only for opt-in checks outside the Worker binding path. Local and test runs use deterministic stubs when the binding or live credentials are absent. Do not add AI Gateway rerouting, direct provider SDKs, or direct provider API keys to the MVP app. Scope `CLOUDFLARE_API_TOKEN` to the task-specific environment.

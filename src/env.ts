@@ -49,7 +49,7 @@ export const variables = defineEnvVars({
 	},
 	WORKERS_AI_TEXT_MODEL_ID: {
 		description: 'Configurable Workers AI text model ID for feedback and practice generation.',
-		schema: z.string().default('@cf/zai-org/glm-4.7-flash')
+		schema: z.string().default('@cf/meta/llama-3.1-8b-instruct-fp8')
 	},
 	WORKERS_AI_TRANSCRIPTION_MODEL_ID: {
 		description: 'Configurable Workers AI transcription model ID for speaking feedback.',
@@ -57,6 +57,6 @@ export const variables = defineEnvVars({
 	},
 	WORKERS_AI_TTS_MODEL_ID: {
 		description: 'Configurable Workers AI text-to-speech model ID for listening prompts.',
-		schema: z.string().default('@cf/myshell-ai/melotts')
+		schema: z.string().default('@cf/deepgram/aura-2-en')
 	}
 });

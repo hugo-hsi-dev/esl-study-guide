@@ -45,7 +45,7 @@ type AssessmentItem = {
 	serverOnlyAudioScript?: string;
 	serverOnlyAudioMetadata?: {
 		provider: 'workers-ai';
-		model: '@cf/myshell-ai/melotts';
+		model: '@cf/deepgram/aura-2-en';
 		schemaVersion: 1;
 	};
 	learnerTask: {
@@ -78,7 +78,7 @@ export const seedAssessmentItems = [
 		serverOnlyAudioScript: 'Mei says, "I will meet my coworker at eight fifty near the station."',
 		serverOnlyAudioMetadata: {
 			provider: 'workers-ai',
-			model: '@cf/myshell-ai/melotts',
+			model: '@cf/deepgram/aura-2-en',
 			schemaVersion: 1
 		},
 		learnerTask: {

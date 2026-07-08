@@ -13,9 +13,11 @@ export type WorkersAiRuntime = {
 };
 
 export class AiOutputValidationError extends Error {}
+export class AiProviderTimeoutError extends Error {}
 
-const DEFAULT_TEXT_MODEL_ID = '@cf/zai-org/glm-4.7-flash';
+const DEFAULT_TEXT_MODEL_ID = '@cf/meta/llama-3.1-8b-instruct-fp8';
 const DEFAULT_TRANSCRIPTION_MODEL_ID = '@cf/openai/whisper-large-v3-turbo';
+const DEFAULT_JSON_TIMEOUT_MS = 2000;
 const MAX_SPEAKING_AUDIO_BYTES = 10 * 1024 * 1024;
 
 export const getWorkersAiRuntime = (): WorkersAiRuntime | null => {
@@ -57,14 +59,32 @@ const parseJson = (text: string) => {
 export async function runWorkersAiJson<T>(
 	runtime: WorkersAiRuntime,
 	messages: { role: 'system' | 'user'; content: string }[],
-	schema: z.ZodType<T>
+	schema: z.ZodType<T>,
+	options: { timeoutMs?: number } = {}
 ) {
-	const output = await runtime.ai.run(runtime.textModelId, {
+	const outputPromise = runtime.ai.run(runtime.textModelId, {
 		messages,
 		temperature: 0.1,
 		max_tokens: 1800,
 		response_format: { type: 'json_object' }
 	});
+	outputPromise.catch(() => {});
+
+	const timeoutMs = options.timeoutMs ?? DEFAULT_JSON_TIMEOUT_MS;
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	const timeoutPromise = new Promise<never>((_, reject) => {
+		timeout = setTimeout(
+			() => reject(new AiProviderTimeoutError('Workers AI JSON generation timed out.')),
+			timeoutMs
+		);
+	});
+
+	let output: unknown;
+	try {
+		output = await Promise.race([outputPromise, timeoutPromise]);
+	} finally {
+		if (timeout) clearTimeout(timeout);
+	}
 
 	try {
 		return schema.parse(parseJson(extractText(output)));
