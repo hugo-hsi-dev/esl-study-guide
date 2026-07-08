@@ -1,12 +1,15 @@
 import type { getAssessmentItemAudioSource } from './assessment-items';
 
-export const defaultWorkersAiTtsModel = '@cf/myshell-ai/melotts';
+export const defaultWorkersAiTtsModel = '@cf/deepgram/aura-2-en';
 export const assessmentAudioSchemaVersion = 1;
 
 type AudioSource = NonNullable<ReturnType<typeof getAssessmentItemAudioSource>>;
-type TtsOutput = Uint8Array | { audio: string };
+type TtsOutput = ReadableStream | Uint8Array | string | { audio: string };
+type TtsBinding = {
+	run(model: string, inputs: Record<string, unknown>): Promise<unknown>;
+};
 type TtsEnv = {
-	AI?: Pick<Ai, 'run'>;
+	AI?: TtsBinding;
 	WORKERS_AI_TTS_MODEL_ID?: string;
 };
 
@@ -39,19 +42,22 @@ export async function generateAssessmentAudio(
 		};
 	}
 
-	const output = (await env.AI.run(model as '@cf/myshell-ai/melotts', {
-		prompt: source.script,
-		lang: 'en'
-	})) as TtsOutput;
+	const output = (await env.AI.run(model, ttsInputs(model, source.script))) as TtsOutput;
 
 	return {
-		bytes: output instanceof Uint8Array ? output : base64ToBytes(output.audio),
+		bytes: await ttsOutputBytes(output),
 		contentType: 'audio/mpeg',
 		provider: 'workers-ai',
 		model,
 		schemaVersion: assessmentAudioSchemaVersion,
 		itemVersion: source.itemVersion
 	};
+}
+
+function ttsInputs(model: string, text: string) {
+	return model.startsWith('@cf/deepgram/aura')
+		? { text, encoding: 'mp3' }
+		: { prompt: text, lang: 'en' };
 }
 
 export function assessmentAudioCacheKey(requestUrl: string, source: AudioSource, model: string) {
@@ -78,6 +84,13 @@ export function assessmentAudioResponse(audio: GeneratedAssessmentAudio) {
 
 function base64ToBytes(value: string) {
 	return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
+async function ttsOutputBytes(output: TtsOutput) {
+	if (output instanceof Uint8Array) return output;
+	if (output instanceof ReadableStream)
+		return new Uint8Array(await new Response(output).arrayBuffer());
+	return base64ToBytes(typeof output === 'string' ? output : output.audio);
 }
 
 function deterministicWav(seed: string) {

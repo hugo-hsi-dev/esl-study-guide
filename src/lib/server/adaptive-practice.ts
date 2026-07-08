@@ -309,43 +309,47 @@ const generateDeterministicPracticeProblem = (input: PracticeGenerationInput): P
 export const generatePracticeProblem = async (
 	input: PracticeGenerationInput
 ): Promise<{ problem: PracticeProblem; metadata: PracticeMetadata }> => {
+	const deterministic = {
+		problem: generateDeterministicPracticeProblem(input),
+		metadata: practiceMetadata
+	};
 	const runtime = getWorkersAiRuntime();
-	if (!runtime) {
-		return {
-			problem: generateDeterministicPracticeProblem(input),
-			metadata: practiceMetadata
-		};
-	}
+	if (!runtime) return deterministic;
 
 	const { targetSignal, targetArea, sourceResponseItemId } = practiceContextFrom(input);
-	const problem = await runWorkersAiJson(
-		runtime,
-		[
-			{
-				role: 'system',
-				content:
-					'Return only JSON for one beginner ESL multiple-choice practice problem. No markdown.'
-			},
-			{
-				role: 'user',
-				content: JSON.stringify({
-					targetSignal,
-					targetArea,
-					sourceResponseItemId,
-					...input,
-					requirements: [
-						'Use the targetSignal exactly.',
-						'Use the targetArea exactly.',
-						'Use difficulty "easy".',
-						'Use 3 choices with short ids like a, b, c.',
-						'Make the answerKey equal one choice id.',
-						'Use daily-life ESL content suitable for adult beginners.'
-					]
-				})
-			}
-		],
-		practiceProblemSchema
-	);
+	let problem;
+	try {
+		problem = await runWorkersAiJson(
+			runtime,
+			[
+				{
+					role: 'system',
+					content:
+						'Return only JSON for one beginner ESL multiple-choice practice problem. No markdown.'
+				},
+				{
+					role: 'user',
+					content: JSON.stringify({
+						targetSignal,
+						targetArea,
+						sourceResponseItemId,
+						...input,
+						requirements: [
+							'Use the targetSignal exactly.',
+							'Use the targetArea exactly.',
+							'Use difficulty "easy".',
+							'Use 3 choices with short ids like a, b, c.',
+							'Make the answerKey equal one choice id.',
+							'Use daily-life ESL content suitable for adult beginners.'
+						]
+					})
+				}
+			],
+			practiceProblemSchema
+		);
+	} catch {
+		return deterministic;
+	}
 
 	return {
 		problem: validatePracticeProblem({
