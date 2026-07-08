@@ -16,13 +16,13 @@ export const variables = defineEnvVars({
 	},
 	GITHUB_CLIENT_ID: {
 		description:
-			'GitHub OAuth client ID. See [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github).',
-		schema: requiredUnlessBuilding
+			'Optional GitHub OAuth client ID. See [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github).',
+		schema: z.string().optional()
 	},
 	GITHUB_CLIENT_SECRET: {
 		description:
-			'GitHub OAuth client secret. See [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github).',
-		schema: requiredUnlessBuilding
+			'Optional GitHub OAuth client secret. See [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github).',
+		schema: z.string().optional()
 	},
 	ADMIN_EMAILS: {
 		description: 'Comma-separated emails that should receive the Admin role on account creation.',

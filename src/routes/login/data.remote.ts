@@ -13,7 +13,7 @@ const emailAuthSchema = z.object({
 });
 
 const redirectTarget = (url: URL, email: string) =>
-	url.searchParams.get('redirectTo') ?? redirectForRole(roleForEmail(email, ADMIN_EMAILS));
+	url.searchParams.get('redirectTo') ?? redirectForRole(roleForEmail(email, ADMIN_EMAILS ?? ''));
 
 export const getLoginPage = query(() => {
 	const event = getRequestEvent();
