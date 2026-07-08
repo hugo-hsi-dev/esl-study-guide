@@ -1,24 +1,20 @@
-import {
-	ORIGIN,
-	BETTER_AUTH_SECRET,
-	GITHUB_CLIENT_ID,
-	GITHUB_CLIENT_SECRET,
-	ADMIN_EMAILS
-} from '$app/env/private';
+import { ORIGIN, BETTER_AUTH_SECRET } from '$app/env/private';
 
 import { betterAuth } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { username } from 'better-auth/plugins';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { getDb, type Db } from '$lib/server/db';
-import { roleForEmail } from '$lib/server/roles';
+import { fixedAccountRoleForUsername } from '$lib/server/fixed-accounts';
 
 const createAuth = (db: Db) =>
 	betterAuth({
 		baseURL: ORIGIN,
 		secret: BETTER_AUTH_SECRET,
 		database: drizzleAdapter(db, { provider: 'sqlite' }),
-		emailAndPassword: { enabled: true },
+		disabledPaths: ['/sign-in/email', '/sign-up/email', '/is-username-available'],
+		emailAndPassword: { enabled: true, disableSignUp: true },
 		user: {
 			additionalFields: {
 				role: { type: 'string', required: false, input: false }
@@ -27,17 +23,18 @@ const createAuth = (db: Db) =>
 		databaseHooks: {
 			user: {
 				create: {
-					before: async (user) => ({
-						data: { ...user, role: roleForEmail(user.email, ADMIN_EMAILS ?? '') }
-					})
+					before: async (user) => {
+						const role =
+							'username' in user && typeof user.username === 'string'
+								? fixedAccountRoleForUsername(user.username)
+								: undefined;
+						if (!role) throw new Error('Only configured test accounts can be created.');
+						return { data: { ...user, role } };
+					}
 				}
 			}
 		},
-		socialProviders:
-			GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET
-				? { github: { clientId: GITHUB_CLIENT_ID, clientSecret: GITHUB_CLIENT_SECRET } }
-				: undefined,
-		plugins: [sveltekitCookies(getRequestEvent)] // make sure this is the last plugin in the array
+		plugins: [username(), sveltekitCookies(getRequestEvent)] // make sure cookies is the last plugin in the array
 	});
 
 export const getAuth = () => createAuth(getDb());

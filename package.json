@@ -18,6 +18,8 @@
 		"gen": "wrangler types",
 		"db:push": "wrangler d1 migrations apply DB --local",
 		"db:push:remote": "wrangler d1 migrations apply DB --remote",
+		"auth:seed": "node scripts/seed-auth-users.mjs",
+		"auth:seed:remote": "node scripts/seed-auth-users.mjs --remote",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",

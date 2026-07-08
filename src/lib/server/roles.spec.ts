@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { getAccountRole, hasRole, redirectForRole, roleForEmail } from './roles';
+import {
+	getAccountRole,
+	hasRole,
+	isAllowedAccountUsername,
+	redirectForRole,
+	roleForUsername
+} from './roles';
+
+const accounts = { adminUsername: 'admin', learnerUsername: 'learner' };
 
 describe('account roles', () => {
-	it('assigns admin only for configured emails', () => {
-		expect(roleForEmail('ADMIN@example.com', 'admin@example.com, owner@example.com')).toBe('admin');
-		expect(roleForEmail('learner@example.com', 'admin@example.com')).toBe('learner');
+	it('assigns only configured fixed account usernames', () => {
+		expect(roleForUsername('ADMIN', accounts)).toBe('admin');
+		expect(roleForUsername('learner', accounts)).toBe('learner');
+		expect(roleForUsername('old', accounts)).toBeUndefined();
+	});
+
+	it('allows sign-in only for configured fixed account usernames', () => {
+		expect(isAllowedAccountUsername('admin', accounts)).toBe(true);
+		expect(isAllowedAccountUsername('learner', accounts)).toBe(true);
+		expect(isAllowedAccountUsername('old', accounts)).toBe(false);
 	});
 
 	it('accepts only shell roles', () => {
