@@ -1,3 +1,4 @@
+import { getRequestEvent } from '$app/server';
 import { error, redirect, type RequestEvent } from '@sveltejs/kit';
 
 export const accountRoles = ['learner', 'admin'] as const;
@@ -22,7 +23,22 @@ export const hasRole = (user: { role?: string | null }, role: AccountRole) =>
 
 export const redirectForRole = (role: AccountRole) => (role === 'admin' ? '/admin' : '/assessment');
 
-export const requireRole = (event: RequestEvent, role: AccountRole) => {
+export function requireRole(
+	event: RequestEvent,
+	role: AccountRole
+): NonNullable<App.Locals['user']>;
+export function requireRole(role: AccountRole): NonNullable<App.Locals['user']>;
+export function requireRole(
+	eventOrRole: RequestEvent | AccountRole,
+	maybeRole?: AccountRole
+): NonNullable<App.Locals['user']> {
+	const event = typeof eventOrRole === 'string' ? getRequestEvent() : eventOrRole;
+	const role = typeof eventOrRole === 'string' ? eventOrRole : maybeRole;
+
+	if (!role) {
+		throw new Error('Role is required.');
+	}
+
 	const { user } = event.locals;
 
 	if (!user) {
@@ -35,4 +51,4 @@ export const requireRole = (event: RequestEvent, role: AccountRole) => {
 	}
 
 	return user;
-};
+}
