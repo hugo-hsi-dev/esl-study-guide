@@ -20,7 +20,7 @@
 		{
 			"binding": "DB",
 			"database_name": "esl-study-guide",
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "6cc1f525-5e7b-45c6-a7bf-edfe6aa13af5",
 			"migrations_dir": "drizzle"
 		}
 	],
