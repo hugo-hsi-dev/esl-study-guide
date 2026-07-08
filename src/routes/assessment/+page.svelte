@@ -71,7 +71,7 @@
 		{/if}
 
 		{#await data.practice then existingPractice}
-			{@const practice = submitAssessment.result?.practice ?? existingPractice}
+			{const practice = submitAssessment.result?.practice ?? existingPractice}
 			{#if practice?.problem}
 				<section class="space-y-4 border-t border-zinc-200 pt-6">
 					<div class="space-y-2">
