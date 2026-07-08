@@ -28,17 +28,15 @@ const createAuth = (db: Db) =>
 			user: {
 				create: {
 					before: async (user) => ({
-						data: { ...user, role: roleForEmail(user.email, ADMIN_EMAILS) }
+						data: { ...user, role: roleForEmail(user.email, ADMIN_EMAILS ?? '') }
 					})
 				}
 			}
 		},
-		socialProviders: {
-			github: {
-				clientId: GITHUB_CLIENT_ID,
-				clientSecret: GITHUB_CLIENT_SECRET
-			}
-		},
+		socialProviders:
+			GITHUB_CLIENT_ID && GITHUB_CLIENT_SECRET
+				? { github: { clientId: GITHUB_CLIENT_ID, clientSecret: GITHUB_CLIENT_SECRET } }
+				: undefined,
 		plugins: [sveltekitCookies(getRequestEvent)] // make sure this is the last plugin in the array
 	});
 
