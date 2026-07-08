@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { PageServerLoad } from './$types';
-import { auth } from '$lib/server/auth';
+import { getAuth } from '$lib/server/auth';
 import { APIError } from 'better-auth/api';
 
 export const load: PageServerLoad = (event) => {
@@ -18,7 +18,7 @@ export const actions: Actions = {
 		const password = formData.get('password')?.toString() ?? '';
 
 		try {
-			await auth.api.signInEmail({
+			await getAuth().api.signInEmail({
 				body: {
 					email,
 					password,
@@ -41,7 +41,7 @@ export const actions: Actions = {
 		const name = formData.get('name')?.toString() ?? '';
 
 		try {
-			await auth.api.signUpEmail({
+			await getAuth().api.signUpEmail({
 				body: {
 					email,
 					password,
@@ -63,7 +63,7 @@ export const actions: Actions = {
 		const provider = formData.get('provider')?.toString() ?? 'github';
 		const callbackURL = formData.get('callbackURL')?.toString() ?? '/demo/better-auth';
 
-		const result = await auth.api.signInSocial({
+		const result = await getAuth().api.signInSocial({
 			body: {
 				provider: provider as 'github',
 				callbackURL

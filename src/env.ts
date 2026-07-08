@@ -1,7 +1,6 @@
 import { defineEnvVars } from '@sveltejs/kit/hooks';
 
 export const variables = defineEnvVars({
-	DATABASE_URL: { description: 'The database connection string.' },
 	ORIGIN: {
 		description: 'The app origin (base URL), e.g. `http://localhost:5173`.'
 	},
@@ -16,5 +15,8 @@ export const variables = defineEnvVars({
 	GITHUB_CLIENT_SECRET: {
 		description:
 			'GitHub OAuth client secret. See [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github).'
+	},
+	ADMIN_EMAILS: {
+		description: 'Comma-separated emails that should receive the Admin role on account creation.'
 	}
 });
