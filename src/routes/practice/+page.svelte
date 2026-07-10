@@ -7,12 +7,13 @@
 	let session = $state(page.state);
 	let heading: HTMLHeadingElement | undefined = $state();
 	let recording = $state(false);
+	let recordingStarting = $state(false);
 	let recordingSeconds = $state(0);
 	let recordingError = $state('');
 	let recorder: MediaRecorder | null = null;
-	let stream: MediaStream | null = null;
-	let timer: ReturnType<typeof setInterval> | null = null;
-	let startedAt = 0;
+	let cleanupRecording: (() => void) | null = null;
+	let destroyed = false;
+	const recordingBusy = $derived(recording || recordingStarting);
 
 	const readable = (value: string) => value.replaceAll('_', ' ');
 
@@ -29,47 +30,69 @@
 	}
 
 	async function startRecording(practiceId: string) {
+		if (recording || recordingStarting || destroyed) return;
 		if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
 			recordingError = 'Recording is unavailable. Upload audio or type a transcript.';
 			return;
 		}
+		recordingStarting = true;
+		let localStream: MediaStream | null = null;
 		try {
 			recordingError = '';
 			const chunks: Blob[] = [];
-			stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			if (destroyed || !recordingStarting) {
+				localStream.getTracks().forEach((track) => track.stop());
+				return;
+			}
 			const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
-			recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-			startedAt = Date.now();
+			const localRecorder = new MediaRecorder(localStream, mimeType ? { mimeType } : undefined);
+			const localStartedAt = Date.now();
+			const localTimer = setInterval(() => {
+				recordingSeconds = Math.max(1, Math.round((Date.now() - localStartedAt) / 1000));
+			}, 250);
+			let cleaned = false;
+			const cleanup = () => {
+				if (cleaned) return;
+				cleaned = true;
+				clearInterval(localTimer);
+				localStream?.getTracks().forEach((track) => track.stop());
+				if (recorder === localRecorder) recorder = null;
+				if (cleanupRecording === cleanup) cleanupRecording = null;
+				recording = false;
+				recordingStarting = false;
+			};
+			recorder = localRecorder;
+			cleanupRecording = cleanup;
 			recordingSeconds = 1;
 			recording = true;
-			timer = setInterval(() => {
-				recordingSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-			}, 250);
-			recorder.ondataavailable = (event) => {
+			recordingStarting = false;
+			localRecorder.ondataavailable = (event) => {
 				if (event.data.size) chunks.push(event.data);
 			};
-			recorder.onstop = () => {
-				if (timer) clearInterval(timer);
-				timer = null;
-				stream?.getTracks().forEach((track) => track.stop());
-				stream = null;
-				recording = false;
+			localRecorder.onstop = () => {
+				cleanup();
 				const file = new File(chunks, `practice-${practiceId}.webm`, {
-					type: recorder?.mimeType || 'audio/webm'
+					type: localRecorder.mimeType || 'audio/webm'
 				});
-				const input = document.getElementById(`practice-audio-${practiceId}`) as HTMLInputElement;
+				const input = document.getElementById(
+					`practice-audio-${practiceId}`
+				) as HTMLInputElement | null;
 				if (file.size && input) {
 					const transfer = new DataTransfer();
 					transfer.items.add(file);
 					input.files = transfer.files;
 				}
 			};
-			recorder.start();
+			localRecorder.start();
 		} catch {
-			stream?.getTracks().forEach((track) => track.stop());
-			stream = null;
+			cleanupRecording?.();
+			localStream?.getTracks().forEach((track) => track.stop());
 			recording = false;
-			recordingError = 'Microphone access was blocked. Upload audio or type a transcript.';
+			recordingStarting = false;
+			if (!destroyed) {
+				recordingError = 'Microphone access was blocked. Upload audio or type a transcript.';
+			}
 		}
 	}
 
@@ -78,8 +101,10 @@
 	}
 
 	onDestroy(() => {
-		if (timer) clearInterval(timer);
-		stream?.getTracks().forEach((track) => track.stop());
+		destroyed = true;
+		recordingStarting = false;
+		if (recorder?.state === 'recording') recorder.stop();
+		cleanupRecording?.();
 	});
 </script>
 
@@ -239,7 +264,8 @@
 										class="min-h-11 rounded-lg bg-zinc-950 px-4 py-2 font-medium text-white"
 										type="button"
 										onclick={() => startRecording(problem.practiceId)}
-										disabled={recording}>Record</button
+										disabled={recordingBusy}
+										>{recordingStarting ? 'Requesting microphone…' : 'Record'}</button
 									>
 									{#if recording}
 										<button
@@ -285,7 +311,7 @@
 						{/if}
 						<button
 							class="min-h-11 rounded-lg bg-teal-700 px-5 py-2 font-semibold text-white disabled:bg-zinc-400"
-							disabled={responseForm.pending > 0 || recording}
+							disabled={responseForm.pending > 0 || recordingBusy}
 						>
 							{responseForm.pending > 0 ? 'Checking…' : 'Check response'}
 						</button>

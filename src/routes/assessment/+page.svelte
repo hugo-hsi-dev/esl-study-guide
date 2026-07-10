@@ -21,12 +21,12 @@
 	let showNewIntake = $state(!page.state);
 	let timeZone = $state('UTC');
 	let stepHeading: HTMLHeadingElement | undefined = $state();
+	let recordingState = $state<'idle' | 'starting' | 'recording'>('idle');
 	let recordingItemId = $state<string | null>(null);
 	let recordingSeconds = $state(0);
 	let recordingError = $state('');
 	let recorder: MediaRecorder | null = null;
 	let recordingStream: MediaStream | null = null;
-	let recordingStartedAt = 0;
 	let recordingTimer: ReturnType<typeof setInterval> | null = null;
 
 	onMount(() => {
@@ -54,34 +54,60 @@
 		};
 	}
 
+	function clearRecording() {
+		if (recordingTimer) clearInterval(recordingTimer);
+		recordingTimer = null;
+		recordingStream?.getTracks().forEach((track) => track.stop());
+		recordingStream = null;
+		recorder = null;
+		recordingItemId = null;
+		recordingState = 'idle';
+	}
+
 	async function startRecording(itemId: string) {
+		if (recordingState !== 'idle') return;
 		if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
 			recordingError = 'Recording is not available here. Upload audio or provide a transcript.';
 			return;
 		}
+		recordingState = 'starting';
+		recordingItemId = itemId;
+		let activeStream: MediaStream | null = null;
 		try {
 			recordingError = '';
 			const chunks: Blob[] = [];
-			recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			const acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			activeStream = acquiredStream;
+			if (recordingState !== 'starting' || recordingItemId !== itemId) {
+				acquiredStream.getTracks().forEach((track) => track.stop());
+				return;
+			}
+			recordingStream = acquiredStream;
 			const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
-			recorder = new MediaRecorder(recordingStream, mimeType ? { mimeType } : undefined);
-			recordingStartedAt = Date.now();
+			const activeRecorder = new MediaRecorder(acquiredStream, mimeType ? { mimeType } : undefined);
+			recorder = activeRecorder;
+			const startedAt = Date.now();
 			recordingSeconds = 1;
-			recordingItemId = itemId;
 			recordingTimer = setInterval(() => {
-				recordingSeconds = Math.max(1, Math.round((Date.now() - recordingStartedAt) / 1000));
+				recordingSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
 			}, 250);
-			recorder.ondataavailable = (event) => {
+			activeRecorder.ondataavailable = (event) => {
 				if (event.data.size) chunks.push(event.data);
 			};
-			recorder.onstop = () => {
+			activeRecorder.onstop = () => {
+				if (recorder !== activeRecorder) {
+					acquiredStream.getTracks().forEach((track) => track.stop());
+					return;
+				}
 				if (recordingTimer) clearInterval(recordingTimer);
 				recordingTimer = null;
-				recordingStream?.getTracks().forEach((track) => track.stop());
+				acquiredStream.getTracks().forEach((track) => track.stop());
 				recordingStream = null;
+				recorder = null;
 				recordingItemId = null;
+				recordingState = 'idle';
 				const file = new File(chunks, `assessment-${itemId}.webm`, {
-					type: recorder?.mimeType || 'audio/webm'
+					type: activeRecorder.mimeType || 'audio/webm'
 				});
 				const input = document.getElementById(`speaking-audio-${itemId}`) as HTMLInputElement;
 				if (file.size && input) {
@@ -90,11 +116,11 @@
 					input.files = transfer.files;
 				}
 			};
-			recorder.start();
+			activeRecorder.start();
+			recordingState = 'recording';
 		} catch {
-			recordingStream?.getTracks().forEach((track) => track.stop());
-			recordingStream = null;
-			recordingItemId = null;
+			activeStream?.getTracks().forEach((track) => track.stop());
+			clearRecording();
 			recordingError = 'Microphone access was blocked. Upload audio or provide a transcript.';
 		}
 	}
@@ -104,8 +130,11 @@
 	}
 
 	onDestroy(() => {
-		if (recordingTimer) clearInterval(recordingTimer);
-		recordingStream?.getTracks().forEach((track) => track.stop());
+		if (recorder && recorder.state !== 'inactive') {
+			recorder.onstop = null;
+			recorder.stop();
+		}
+		clearRecording();
 	});
 </script>
 
@@ -282,9 +311,10 @@
 									type="button"
 									class="min-h-11 rounded-lg bg-zinc-950 px-4 py-2 font-medium text-white"
 									onclick={() => startRecording(currentItem.id)}
-									disabled={recordingItemId === currentItem.id}>Record</button
+									disabled={recordingState !== 'idle'}
+									>{recordingState === 'starting' ? 'Starting…' : 'Record'}</button
 								>
-								{#if recordingItemId === currentItem.id}
+								{#if recordingState === 'recording' && recordingItemId === currentItem.id}
 									<button
 										type="button"
 										class="min-h-11 rounded-lg border border-red-300 px-4 py-2 font-medium text-red-800"
@@ -300,6 +330,7 @@
 									type="file"
 									name="speakingAudio"
 									accept="audio/webm,audio/wav,audio/mpeg,audio/mp4,audio/ogg"
+									disabled={recordingState !== 'idle'}
 								/>
 							</label>
 							<label class="block space-y-2">
@@ -313,6 +344,7 @@
 									value={savedResponse?.kind === 'speaking_metadata'
 										? savedResponse.metadata.responseSeconds
 										: recordingSeconds || 20}
+									disabled={recordingState !== 'idle'}
 									required
 								/>
 							</label>
@@ -324,6 +356,7 @@
 									maxlength="5000"
 									class="w-full rounded-lg border border-zinc-300 px-3 py-3"
 									placeholder="Type what you said if recording is unavailable"
+									disabled={recordingState !== 'idle'}
 									>{savedResponse?.kind === 'speaking_metadata'
 										? (savedResponse.metadata.transcript ?? '')
 										: ''}</textarea
@@ -339,7 +372,7 @@
 						<button
 							type="button"
 							class="min-h-11 rounded-lg border border-zinc-300 px-4 py-2 font-medium text-zinc-700 disabled:opacity-40"
-							disabled={currentIndex === 0}
+							disabled={currentIndex === 0 || recordingState !== 'idle'}
 							onclick={async () => {
 								currentIndex -= 1;
 								await focusStep();
@@ -347,7 +380,7 @@
 						>
 						<button
 							class="min-h-11 rounded-lg bg-teal-700 px-5 py-2 font-semibold text-white disabled:bg-zinc-400"
-							disabled={stepForm.pending > 0 || recordingItemId !== null}
+							disabled={stepForm.pending > 0 || recordingState !== 'idle'}
 						>
 							{stepForm.pending > 0
 								? 'Saving…'
@@ -379,7 +412,7 @@
 					<p class="font-medium text-teal-950">All 14 responses are saved.</p>
 					<button
 						class="mt-3 min-h-11 rounded-lg bg-teal-700 px-5 py-2 font-semibold text-white disabled:bg-zinc-400"
-						disabled={completeAssessment.pending > 0}
+						disabled={completeAssessment.pending > 0 || recordingState !== 'idle'}
 					>
 						{completeAssessment.pending > 0 ? 'Building your profile…' : 'Complete diagnosis'}
 					</button>

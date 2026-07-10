@@ -290,6 +290,36 @@ const getActiveAttempt = async (db: Db, learnerUserId: string) => {
 	return attempt;
 };
 
+export async function authorizeAssessmentResponse(
+	db: Db,
+	learnerUserId: string,
+	input: Pick<SaveAssessmentResponseInput, 'attemptId' | 'itemId'>
+) {
+	const parsedInput = z
+		.object({
+			attemptId: z.string().trim().min(1),
+			itemId: z.string().trim().min(1)
+		})
+		.parse(input);
+	const attempt = await getOwnedAttempt(db, learnerUserId, parsedInput.attemptId);
+	if (!attempt) throw new AssessmentAttemptInputError('Assessment attempt was not found.');
+	if (attempt.status === 'completed') return { completedState: publicState(attempt) };
+	if (attempt.status !== 'in_progress') {
+		throw new AssessmentAttemptInputError('Assessment attempt cannot be changed.');
+	}
+
+	const row = parseRow(attempt);
+	const selectedItem = row.selectedItemsJson.find((item) => item.id === parsedInput.itemId);
+	if (!selectedItem) {
+		throw new AssessmentAttemptInputError('Assessment Item is not in this attempt.');
+	}
+	const item = getAssessmentItemVersion(selectedItem.id, selectedItem.version);
+	if (!item || item.area !== selectedItem.area) {
+		throw new AssessmentAttemptInputError('Assessment Item version is not available.');
+	}
+	return { completedState: null };
+}
+
 export async function getAssessmentState(db: Db, learnerUserId: string) {
 	const active = await getActiveAttempt(db, learnerUserId);
 	if (active) return publicState(active);

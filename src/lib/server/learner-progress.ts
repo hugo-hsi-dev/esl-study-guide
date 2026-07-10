@@ -184,7 +184,8 @@ export async function getLearnerProductData(db: Db, learnerUserId: string, now =
 	const latestPractice = latest
 		? practice.filter((attempt) => attempt.assessmentAttemptId === latest.id)
 		: [];
-	const sessions = buildSessions(latestPractice);
+	const sessions = buildSessions(practice);
+	const latestSessions = buildSessions(latestPractice);
 	const scoredHistory = latestPractice.flatMap((row) => {
 		const score = feedbackScore(row.feedback);
 		return score === null
@@ -210,7 +211,7 @@ export async function getLearnerProductData(db: Db, learnerUserId: string, now =
 		(session) => session.completedAt && weekKey(session.completedAt, timeZone) === currentWeek
 	).length;
 	const inProgressAssessment = assessments.find((attempt) => attempt.status === 'in_progress');
-	const inProgressSession = sessions.find((session) => session.status === 'in_progress');
+	const inProgressSession = latestSessions.find((session) => session.status === 'in_progress');
 	const primaryAction = inProgressAssessment
 		? { href: '/assessment', label: 'Resume Skill Diagnosis' }
 		: !latest

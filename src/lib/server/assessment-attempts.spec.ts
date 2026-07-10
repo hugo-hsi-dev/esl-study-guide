@@ -1,9 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { saveAssessmentAttempt } from './assessment-attempts';
+import { authorizeAssessmentResponse, saveAssessmentAttempt } from './assessment-attempts';
 import { getLearnerAssessmentItems } from './assessment-items';
 import type { Db } from './db';
 
 describe('saveAssessmentAttempt', () => {
+	it('rejects a foreign assessment attempt before building a response draft', async () => {
+		expect.assertions(1);
+		const db = {
+			select: () => ({
+				from: () => ({
+					where: () => ({ limit: async () => [] })
+				})
+			})
+		} as unknown as Db;
+
+		await expect(
+			authorizeAssessmentResponse(db, 'learner-1', {
+				attemptId: crypto.randomUUID(),
+				itemId: 'speak-recent-purchase'
+			})
+		).rejects.toThrow('Assessment attempt was not found.');
+	});
+
 	it('saves one completed 14-task attempt with honest limited diagnosis', async () => {
 		expect.assertions(12);
 

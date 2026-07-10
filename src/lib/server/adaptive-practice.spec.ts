@@ -6,6 +6,7 @@ import {
 	gradePracticeAnswer,
 	practiceDifficulties,
 	selectNextPracticeTarget,
+	submitPracticeResponse,
 	toPublicPracticeProblem,
 	validatePracticeMetadata,
 	validatePracticeProblem,
@@ -14,6 +15,7 @@ import {
 	type PracticeSelection
 } from './adaptive-practice';
 import type { AssessmentArea, ErrorSignal } from './assessment-items';
+import type { Db } from './db';
 import type { WorkersAiRuntime } from './workers-ai';
 
 const areas = [
@@ -146,6 +148,36 @@ describe('adaptive target selection', () => {
 });
 
 describe('practice problem boundaries', () => {
+	it('does not resolve speaking audio for a foreign practice ID', async () => {
+		expect.assertions(2);
+		const db = {
+			select: () => ({
+				from: () => ({
+					where: () => ({ limit: async () => [] })
+				})
+			})
+		} as unknown as Db;
+		let resolveCalls = 0;
+
+		await expect(
+			submitPracticeResponse(
+				db,
+				'learner-1',
+				{
+					practiceId: crypto.randomUUID(),
+					response: { kind: 'speaking', responseSeconds: 20 }
+				},
+				{
+					resolveSpeakingResponse: async (response) => {
+						resolveCalls += 1;
+						return response;
+					}
+				}
+			)
+		).rejects.toThrow('Practice problem was not found.');
+		expect(resolveCalls).toBe(0);
+	});
+
 	it('keeps every fallback signal and difficulty valid', async () => {
 		expect.assertions(signals.length * practiceDifficulties.length);
 

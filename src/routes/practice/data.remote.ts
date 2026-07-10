@@ -65,11 +65,8 @@ export const startPracticeSession = form(startSchema, async () => {
 export const submitPractice = form(submitSchema, async (data) => {
 	const user = requireRole('learner');
 	try {
-		let transcript = data.transcript?.trim() || undefined;
-		if (data.kind === 'speaking' && data.audio?.size) {
-			const transcribed = await transcribeSpeakingAudio(data.audio);
-			transcript = transcribed?.text ?? transcript;
-		}
+		const transcript = data.transcript?.trim() || undefined;
+		const audio = data.kind === 'speaking' && data.audio?.size ? data.audio : undefined;
 		const response = validatePracticeResponse(
 			data.kind === 'choice' || data.kind === 'fill'
 				? { kind: data.kind, answer: data.answer }
@@ -81,10 +78,26 @@ export const submitPractice = form(submitSchema, async (data) => {
 							...(transcript ? { transcript } : {})
 						}
 		);
-		const result = await submitPracticeResponse(getDb(), user.id, {
-			practiceId: data.practiceId,
-			response
-		});
+		const result = await submitPracticeResponse(
+			getDb(),
+			user.id,
+			{
+				practiceId: data.practiceId,
+				response
+			},
+			{
+				resolveSpeakingResponse: audio
+					? async (authorizedResponse) => {
+							const transcribed = await transcribeSpeakingAudio(audio);
+							const authorizedTranscript = transcribed?.text ?? authorizedResponse.transcript;
+							return {
+								...authorizedResponse,
+								...(authorizedTranscript ? { transcript: authorizedTranscript } : {})
+							};
+						}
+					: undefined
+			}
+		);
 		const state = result.completed
 			? await readPracticeSession(getDb(), user.id)
 			: await createPracticeSession(getDb(), user.id);

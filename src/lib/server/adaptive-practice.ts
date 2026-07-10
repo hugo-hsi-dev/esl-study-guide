@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import {
 	getAssessmentItemVersion,
@@ -1384,8 +1384,9 @@ const getPracticeRows = (db: Db, learnerUserId: string) =>
 		.select()
 		.from(practiceAttempt)
 		.where(eq(practiceAttempt.learnerUserId, learnerUserId))
-		.orderBy(asc(practiceAttempt.createdAt), asc(practiceAttempt.sequence))
-		.limit(250);
+		.orderBy(desc(practiceAttempt.createdAt), desc(practiceAttempt.sequence))
+		.limit(250)
+		.then((rows) => rows.reverse());
 
 type SessionGroup = { sessionId: string; rows: PracticeRow[]; legacy: boolean };
 
@@ -1593,10 +1594,15 @@ export async function submitPracticeResponse(
 	db: Db,
 	learnerUserId: string,
 	input: { practiceId: string; response: PracticeResponse },
-	options: { runtime?: WorkersAiRuntime | null } = {}
+	options: {
+		runtime?: WorkersAiRuntime | null;
+		resolveSpeakingResponse?: (
+			response: Extract<PracticeResponse, { kind: 'speaking' }>
+		) => Promise<Extract<PracticeResponse, { kind: 'speaking' }>>;
+	} = {}
 ) {
 	const practiceId = z.string().uuid().parse(input.practiceId);
-	const response = validatePracticeResponse(input.response);
+	let response = validatePracticeResponse(input.response);
 	const [row] = await db
 		.select()
 		.from(practiceAttempt)
@@ -1614,6 +1620,14 @@ export async function submitPracticeResponse(
 	}
 	const { problem, metadata } = parseStoredRow(row);
 	if (problem.kind !== response.kind) throw new PracticeInputError('Response type does not match.');
+	if (
+		problem.kind === 'speaking' &&
+		response.kind === 'speaking' &&
+		options.resolveSpeakingResponse
+	) {
+		response = validatePracticeResponse(await options.resolveSpeakingResponse(response));
+		if (response.kind !== 'speaking') throw new PracticeInputError('Response type does not match.');
+	}
 	const initialFeedback =
 		problem.kind === 'choice' || problem.kind === 'fill'
 			? gradeObjectiveResponse(

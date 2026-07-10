@@ -1,6 +1,7 @@
 import { form, getRequestEvent } from '$app/server';
 import { z } from 'zod';
 import { getAuth } from '$lib/server/auth';
+// Remote forms in this prerelease runtime do not provide the request store public redirect() needs.
 // @ts-expect-error SvelteKit next exports this runtime class without module types.
 import { Redirect } from '@sveltejs/kit/internal';
 

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
 	AssessmentAttemptInputError,
 	assessmentIntakeSchema,
+	authorizeAssessmentResponse,
 	buildAssessmentResponseDraft,
 	completeAssessment as completeAssessmentAttempt,
 	getAssessmentState as readAssessmentState,
@@ -74,6 +75,12 @@ export const startAssessment = form(startSchema, async (data) => {
 export const saveAssessmentResponse = form(responseSchema, async (data) => {
 	const user = requireRole('learner');
 	try {
+		const authorization = await authorizeAssessmentResponse(getDb(), user.id, {
+			attemptId: data.attemptId,
+			itemId: data.itemId
+		});
+		if (authorization.completedState) return { state: authorization.completedState };
+
 		const formData = new FormData();
 		if (data.answer !== undefined) formData.set(`answer:${data.itemId}`, data.answer);
 		if (data.speakingSeconds !== undefined) {
