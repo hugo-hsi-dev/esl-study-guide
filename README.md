@@ -1,6 +1,6 @@
 # ESL Study Guide
 
-SvelteKit app for an ESL assessment and adaptive practice loop, backed by Cloudflare D1.
+Private SvelteKit study tool for Skill Diagnosis, daily Adaptive Practice, and progress review, backed by Cloudflare D1 and Workers AI.
 
 ## Development
 
@@ -34,3 +34,5 @@ pnpm preview
 ```
 
 Use `pnpm db:generate` after changing `src/lib/server/db/schema.ts`.
+
+Production promotion is manual. See [the release runbook](docs/runbooks/release.md) for staging, D1 migration, smoke-test, and rollback steps.

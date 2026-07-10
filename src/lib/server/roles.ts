@@ -28,7 +28,7 @@ export const getAccountRole = (user: { role?: string | null }): AccountRole | un
 export const hasRole = (user: { role?: string | null }, role: AccountRole) =>
 	getAccountRole(user) === role;
 
-export const redirectForRole = (role: AccountRole) => (role === 'admin' ? '/admin' : '/assessment');
+export const redirectForRole = (role: AccountRole) => (role === 'admin' ? '/admin' : '/study');
 
 export function requireRole(
 	event: RequestEvent,

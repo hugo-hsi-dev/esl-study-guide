@@ -4,7 +4,7 @@ import { getLearnerAssessmentItems } from './assessment-items';
 import type { Db } from './db';
 
 describe('saveAssessmentAttempt', () => {
-	it('saves one diagnosed attempt with all six assessed areas', async () => {
+	it('saves one completed 14-task attempt with honest limited diagnosis', async () => {
 		expect.assertions(12);
 
 		const formData = new FormData();
@@ -41,13 +41,17 @@ describe('saveAssessmentAttempt', () => {
 				priorityWeaknesses: { signal: string }[];
 				rubricOutputs: { pronunciation: { score: null; feedback: string } };
 			};
-			studyPlanJson: { today: string[] };
-			diagnosisMetadataJson: { model: string; schemaVersion: number };
+			studyPlanJson: { reassessAfterPracticeCount: number };
+			diagnosisMetadataJson: {
+				modelId: string;
+				schemaVersion: number;
+				fallbackReason?: string;
+			};
 		};
 
 		expect(row.learnerUserId).toBe('learner-1');
-		expect(row.status).toBe('skill_diagnosed');
-		expect(row.selectedItemsJson.map((item) => item.area).sort()).toEqual([
+		expect(row.status).toBe('completed');
+		expect([...new Set(row.selectedItemsJson.map((item) => item.area))].sort()).toEqual([
 			'grammar_usage',
 			'listening',
 			'reading',
@@ -55,14 +59,7 @@ describe('saveAssessmentAttempt', () => {
 			'vocabulary',
 			'writing'
 		]);
-		expect(row.responsesJson.map((response) => response.area).sort()).toEqual([
-			'grammar_usage',
-			'listening',
-			'reading',
-			'speaking',
-			'vocabulary',
-			'writing'
-		]);
+		expect(row.responsesJson).toHaveLength(14);
 		expect(row.responsesJson.find((response) => response.area === 'writing')?.kind).toBe(
 			'writing_text'
 		);
@@ -73,7 +70,7 @@ describe('saveAssessmentAttempt', () => {
 			kind: 'speaking_metadata',
 			metadata: { representedBy: 'temporary_metadata', responseSeconds: 42 }
 		});
-		expect(row.skillProfileJson.skillBands.writing).toBe('emerging');
+		expect(row.skillProfileJson.skillBands.writing).toBe('insufficient_evidence');
 		expect(row.skillProfileJson.priorityWeaknesses.length).toBeGreaterThan(0);
 		expect(row.skillProfileJson.rubricOutputs.pronunciation).toEqual({
 			score: null,
@@ -81,11 +78,12 @@ describe('saveAssessmentAttempt', () => {
 			feedback:
 				'Pronunciation scoring is deferred; speaking feedback uses transcript-level surface analysis.'
 		});
-		expect(row.studyPlanJson.today.length).toBeGreaterThan(0);
+		expect(row.studyPlanJson.reassessAfterPracticeCount).toBe(20);
 		expect(row.diagnosisMetadataJson).toMatchObject({
-			model: 'deterministic-diagnosis',
-			schemaVersion: 1
+			modelId: 'deterministic-objective-scoring',
+			schemaVersion: 2,
+			fallbackReason: 'workers_ai_unavailable'
 		});
-		expect(result.status).toBe('skill_diagnosed');
+		expect(result.status).toBe('completed');
 	});
 });

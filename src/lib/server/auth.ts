@@ -6,7 +6,6 @@ import { username } from 'better-auth/plugins';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { getDb, type Db } from '$lib/server/db';
-import { fixedAccountRoleForUsername } from '$lib/server/fixed-accounts';
 
 const createAuth = (db: Db) =>
 	betterAuth({
@@ -18,20 +17,6 @@ const createAuth = (db: Db) =>
 		user: {
 			additionalFields: {
 				role: { type: 'string', required: false, input: false }
-			}
-		},
-		databaseHooks: {
-			user: {
-				create: {
-					before: async (user) => {
-						const role =
-							'username' in user && typeof user.username === 'string'
-								? fixedAccountRoleForUsername(user.username)
-								: undefined;
-						if (!role) throw new Error('Only configured test accounts can be created.');
-						return { data: { ...user, role } };
-					}
-				}
 			}
 		},
 		plugins: [username(), sveltekitCookies(getRequestEvent)] // make sure cookies is the last plugin in the array

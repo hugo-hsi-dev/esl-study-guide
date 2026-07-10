@@ -15,21 +15,27 @@
 	<form {...signInUsername} class="flex flex-col gap-4">
 		<label class="flex flex-col gap-1 text-sm font-medium text-zinc-800">
 			Username
-			<input class="rounded border border-zinc-300 px-3 py-2" name="username" required />
+			<input
+				class="min-h-11 rounded border border-zinc-300 px-3 py-2"
+				name="username"
+				autocomplete="username"
+				required
+			/>
 		</label>
 
 		<label class="flex flex-col gap-1 text-sm font-medium text-zinc-800">
 			Password
 			<input
-				class="rounded border border-zinc-300 px-3 py-2"
+				class="min-h-11 rounded border border-zinc-300 px-3 py-2"
 				type="password"
 				name="password"
+				autocomplete="current-password"
 				required
 			/>
 		</label>
 
 		<button
-			class="rounded bg-zinc-950 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+			class="min-h-11 rounded bg-zinc-950 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
 			disabled={signInUsername.pending > 0}
 		>
 			{signInUsername.pending > 0 ? 'Signing in...' : 'Sign in'}

@@ -18,7 +18,8 @@ export const GET: RequestHandler = async (event) => {
 
 	if (!event.params.itemId) error(404, 'Listening audio was not found.');
 
-	const source = getAssessmentItemAudioSource(event.params.itemId);
+	const requestedVersion = Number(event.url.searchParams.get('version')) || undefined;
+	const source = getAssessmentItemAudioSource(event.params.itemId, requestedVersion);
 	if (!source) error(404, 'Listening audio was not found.');
 
 	const cache = event.platform?.caches?.default as WebCache | undefined;
