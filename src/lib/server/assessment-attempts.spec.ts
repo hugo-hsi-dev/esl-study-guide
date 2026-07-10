@@ -3,23 +3,63 @@ import { authorizeAssessmentResponse, saveAssessmentAttempt } from './assessment
 import { getLearnerAssessmentItems } from './assessment-items';
 import type { Db } from './db';
 
+const includesSqlParameter = (
+	value: unknown,
+	expected: string,
+	visited = new Set<object>()
+): boolean => {
+	if (value === expected) return true;
+	if (!value || typeof value !== 'object') return false;
+	if (visited.has(value)) return false;
+	visited.add(value);
+	return Object.values(value).some((entry) => includesSqlParameter(entry, expected, visited));
+};
+
 describe('saveAssessmentAttempt', () => {
-	it('rejects a foreign assessment attempt before building a response draft', async () => {
-		expect.assertions(1);
+	it('rejects an assessment attempt owned by another learner', async () => {
+		expect.assertions(2);
+		const item = getLearnerAssessmentItems()[0];
+		if (!item) throw new Error('Expected an assessment item.');
+		const foreignAttempt = {
+			id: 'attempt-1',
+			learnerUserId: 'other-learner',
+			status: 'in_progress' as const,
+			definitionVersion: 2,
+			intakeJson: {
+				goal: 'Use English at work',
+				selfRatings: { speaking: 3, reading: 3, writing: 3 },
+				timeZone: 'UTC'
+			},
+			selectedItemsJson: [{ id: item.id, version: item.version, area: item.area }],
+			responsesJson: [],
+			skillProfileJson: null,
+			studyPlanJson: null,
+			diagnosisMetadataJson: null,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			completedAt: null
+		};
+		let queriedWithLearnerOwnership = false;
 		const db = {
 			select: () => ({
 				from: () => ({
-					where: () => ({ limit: async () => [] })
+					where: (condition: unknown) => {
+						queriedWithLearnerOwnership = includesSqlParameter(condition, 'learner-1');
+						return {
+							limit: async () => (queriedWithLearnerOwnership ? [] : [foreignAttempt])
+						};
+					}
 				})
 			})
 		} as unknown as Db;
 
 		await expect(
 			authorizeAssessmentResponse(db, 'learner-1', {
-				attemptId: crypto.randomUUID(),
-				itemId: 'speak-recent-purchase'
+				attemptId: foreignAttempt.id,
+				itemId: item.id
 			})
 		).rejects.toThrow('Assessment attempt was not found.');
+		expect(queriedWithLearnerOwnership).toBe(true);
 	});
 
 	it('saves one completed 14-task attempt with honest limited diagnosis', async () => {

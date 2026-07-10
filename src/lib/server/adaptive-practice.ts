@@ -1620,28 +1620,33 @@ export async function submitPracticeResponse(
 	}
 	const { problem, metadata } = parseStoredRow(row);
 	if (problem.kind !== response.kind) throw new PracticeInputError('Response type does not match.');
-	if (
+	const shouldResolveSpeaking =
 		problem.kind === 'speaking' &&
 		response.kind === 'speaking' &&
-		options.resolveSpeakingResponse
-	) {
-		response = validatePracticeResponse(await options.resolveSpeakingResponse(response));
-		if (response.kind !== 'speaking') throw new PracticeInputError('Response type does not match.');
-	}
+		options.resolveSpeakingResponse !== undefined;
 	const initialFeedback =
 		problem.kind === 'choice' || problem.kind === 'fill'
 			? gradeObjectiveResponse(
 					problem,
 					response as Extract<PracticeResponse, { kind: 'choice' | 'fill' }>
 				)
-			: unavailableProductiveFeedback('feedback is still being prepared');
+			: unavailableProductiveFeedback(
+					shouldResolveSpeaking
+						? 'speaking transcription did not finish'
+						: 'feedback is still being prepared'
+				);
 	const answeredAt = new Date();
-	const updated = await db
+	// Claim the attempt before invoking ASR. If this request stops here, the learner still has
+	// an honest, unscored result instead of a presented row that would block the whole session.
+	const claimed = await db
 		.update(practiceAttempt)
 		.set({
 			status: 'answered',
 			answer: JSON.stringify(response),
 			feedbackJson: initialFeedback,
+			metadataJson: shouldResolveSpeaking
+				? { ...metadata, fallbackReason: 'processing_interrupted' }
+				: metadata,
 			answeredAt
 		})
 		.where(
@@ -1652,10 +1657,44 @@ export async function submitPracticeResponse(
 			)
 		)
 		.returning({ id: practiceAttempt.id });
-	if (!updated.length)
+	if (!claimed.length) {
 		throw new PracticeConflictError('Practice problem has already been answered.');
+	}
 
 	let feedback = initialFeedback;
+	if (shouldResolveSpeaking) {
+		try {
+			response = validatePracticeResponse(
+				await options.resolveSpeakingResponse!(
+					response as Extract<PracticeResponse, { kind: 'speaking' }>
+				)
+			);
+			if (response.kind !== 'speaking')
+				throw new PracticeInputError('Response type does not match.');
+		} catch {
+			feedback = unavailableProductiveFeedback('speaking transcription could not be completed');
+			await db
+				.update(practiceAttempt)
+				.set({
+					feedbackJson: feedback,
+					metadataJson: { ...metadata, fallbackReason: 'transcription_failed' }
+				})
+				.where(
+					and(
+						eq(practiceAttempt.id, practiceId),
+						eq(practiceAttempt.learnerUserId, learnerUserId),
+						eq(practiceAttempt.status, 'answered')
+					)
+				);
+			return {
+				practiceId,
+				sessionId: row.sessionId,
+				sequence: row.sequence,
+				completed: row.sequence === 5,
+				feedback
+			};
+		}
+	}
 	if (problem.kind === 'short_text' || problem.kind === 'speaking') {
 		const runtime = options.runtime === undefined ? getWorkersAiRuntime() : options.runtime;
 		const graded = await gradeProductiveResponse(
@@ -1667,13 +1706,18 @@ export async function submitPracticeResponse(
 		await db
 			.update(practiceAttempt)
 			.set({
+				answer: JSON.stringify(response),
 				feedbackJson: feedback,
 				metadataJson: graded.fallbackReason
 					? { ...metadata, fallbackReason: graded.fallbackReason }
 					: metadata
 			})
 			.where(
-				and(eq(practiceAttempt.id, practiceId), eq(practiceAttempt.learnerUserId, learnerUserId))
+				and(
+					eq(practiceAttempt.id, practiceId),
+					eq(practiceAttempt.learnerUserId, learnerUserId),
+					eq(practiceAttempt.status, 'answered')
+				)
 			);
 	}
 

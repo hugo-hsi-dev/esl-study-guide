@@ -13,7 +13,11 @@ import {
 } from '$lib/server/adaptive-practice';
 import { getDb } from '$lib/server/db';
 import { requireRole } from '$lib/server/roles';
-import { AiOutputValidationError, transcribeSpeakingAudio } from '$lib/server/workers-ai';
+import {
+	AiOutputValidationError,
+	transcribeSpeakingAudio,
+	validateSpeakingAudio
+} from '$lib/server/workers-ai';
 
 const startSchema = z.object({ intent: z.string().optional() });
 const submitSchema = z.object({
@@ -67,6 +71,7 @@ export const submitPractice = form(submitSchema, async (data) => {
 	try {
 		const transcript = data.transcript?.trim() || undefined;
 		const audio = data.kind === 'speaking' && data.audio?.size ? data.audio : undefined;
+		if (audio) validateSpeakingAudio(audio);
 		const response = validatePracticeResponse(
 			data.kind === 'choice' || data.kind === 'fill'
 				? { kind: data.kind, answer: data.answer }
@@ -88,7 +93,13 @@ export const submitPractice = form(submitSchema, async (data) => {
 			{
 				resolveSpeakingResponse: audio
 					? async (authorizedResponse) => {
-							const transcribed = await transcribeSpeakingAudio(audio);
+							let transcribed: Awaited<ReturnType<typeof transcribeSpeakingAudio>>;
+							try {
+								transcribed = await transcribeSpeakingAudio(audio);
+							} catch (error) {
+								if (!authorizedResponse.transcript) throw error;
+								transcribed = null;
+							}
 							const authorizedTranscript = transcribed?.text ?? authorizedResponse.transcript;
 							return {
 								...authorizedResponse,

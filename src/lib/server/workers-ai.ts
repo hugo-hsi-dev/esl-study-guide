@@ -28,6 +28,15 @@ const ALLOWED_SPEAKING_AUDIO_TYPES = new Set([
 	'audio/ogg'
 ]);
 
+export const validateSpeakingAudio = (file: File) => {
+	if (file.size > MAX_SPEAKING_AUDIO_BYTES) {
+		throw new AiOutputValidationError('Speaking audio is too large.');
+	}
+	if (!ALLOWED_SPEAKING_AUDIO_TYPES.has(file.type.toLowerCase().split(';')[0])) {
+		throw new AiOutputValidationError('Speaking audio must be WebM, WAV, MP3, MP4, or Ogg.');
+	}
+};
+
 export const getWorkersAiRuntime = (): WorkersAiRuntime | null => {
 	try {
 		const env = getRequestEvent().platform?.env;
@@ -106,12 +115,7 @@ export async function runWorkersAiJson<T>(
 export async function transcribeSpeakingAudio(file: File) {
 	const runtime = getWorkersAiRuntime();
 	if (file.size === 0) return null;
-	if (file.size > MAX_SPEAKING_AUDIO_BYTES) {
-		throw new AiOutputValidationError('Speaking audio is too large.');
-	}
-	if (!ALLOWED_SPEAKING_AUDIO_TYPES.has(file.type.toLowerCase().split(';')[0])) {
-		throw new AiOutputValidationError('Speaking audio must be WebM, WAV, MP3, MP4, or Ogg.');
-	}
+	validateSpeakingAudio(file);
 	if (!runtime) return null;
 
 	const audio = [...new Uint8Array(await file.arrayBuffer())];

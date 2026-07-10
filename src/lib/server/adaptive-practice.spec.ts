@@ -16,6 +16,7 @@ import {
 } from './adaptive-practice';
 import type { AssessmentArea, ErrorSignal } from './assessment-items';
 import type { Db } from './db';
+import { practiceAttempt } from './db/schema';
 import type { WorkersAiRuntime } from './workers-ai';
 
 const areas = [
@@ -148,6 +149,73 @@ describe('adaptive target selection', () => {
 });
 
 describe('practice problem boundaries', () => {
+	const speakingProblem = {
+		id: 'speaking-claim-test',
+		targetArea: 'speaking' as const,
+		targetSignal: 'fluency' as const,
+		prompt: 'Describe your day in one or two sentences.',
+		difficulty: 'practice' as const,
+		adaptiveReason: 'plan_balance' as const,
+		kind: 'speaking' as const,
+		rubric: { targetDescription: 'Use a complete sentence.', minimumSeconds: 1 }
+	};
+	const speakingMetadata = {
+		schemaVersion: 2 as const,
+		provider: 'local' as const,
+		modelId: 'test-model',
+		promptVersion: 'test-v1',
+		generatedAt: '2026-07-10T00:00:00.000Z'
+	};
+	const practiceDb = (practiceId: string, updates: Record<string, unknown>[], claim = true) => {
+		const practiceRow = {
+			id: practiceId,
+			learnerUserId: 'learner-1',
+			assessmentAttemptId: 'assessment-1',
+			status: 'presented' as 'presented' | 'answered',
+			sessionId: 'session-1',
+			sequence: 5,
+			practiceProblemJson: speakingProblem,
+			answer: null,
+			feedbackJson: null,
+			metadataJson: speakingMetadata,
+			createdAt: new Date(),
+			answeredAt: null
+		};
+		const assessmentRow = {
+			id: 'assessment-1',
+			status: 'completed' as const,
+			skillProfileJson: {},
+			studyPlanJson: {}
+		};
+		return {
+			select: () => ({
+				from: (table: unknown) => ({
+					where: () => ({
+						limit: async () => (table === practiceAttempt ? [practiceRow] : [assessmentRow]),
+						orderBy: () => ({ limit: async () => [assessmentRow] })
+					})
+				})
+			}),
+			update: () => ({
+				set: (values: unknown) => {
+					const update = values as Record<string, unknown>;
+					updates.push(update);
+					if (!('status' in update)) Object.assign(practiceRow, update);
+					return {
+						where: () => ({
+							returning: async () => {
+								if (update.status !== 'answered') return [{ id: practiceId }];
+								if (!claim || practiceRow.status !== 'presented') return [];
+								Object.assign(practiceRow, update);
+								return [{ id: practiceId }];
+							}
+						})
+					};
+				}
+			})
+		} as unknown as Db;
+	};
+
 	it('does not resolve speaking audio for a foreign practice ID', async () => {
 		expect.assertions(2);
 		const db = {
@@ -176,6 +244,113 @@ describe('practice problem boundaries', () => {
 			)
 		).rejects.toThrow('Practice problem was not found.');
 		expect(resolveCalls).toBe(0);
+	});
+
+	it('does not transcribe when another request has already claimed the practice attempt', async () => {
+		expect.assertions(2);
+		const practiceId = crypto.randomUUID();
+		const updates: Record<string, unknown>[] = [];
+		let resolveCalls = 0;
+
+		await expect(
+			submitPracticeResponse(
+				practiceDb(practiceId, updates, false),
+				'learner-1',
+				{ practiceId, response: { kind: 'speaking', responseSeconds: 20 } },
+				{
+					resolveSpeakingResponse: async (response) => {
+						resolveCalls += 1;
+						return response;
+					}
+				}
+			)
+		).rejects.toThrow('Practice problem has already been answered.');
+		expect(resolveCalls).toBe(0);
+	});
+
+	it('allows only the claimed request to transcribe speaking audio', async () => {
+		expect.assertions(4);
+		const practiceId = crypto.randomUUID();
+		const updates: Record<string, unknown>[] = [];
+		const db = practiceDb(practiceId, updates);
+		let resolveCalls = 0;
+		let notifyStarted: (() => void) | undefined;
+		const started = new Promise<void>((resolve) => {
+			notifyStarted = resolve;
+		});
+		let finishTranscription:
+			| ((response: { kind: 'speaking'; responseSeconds: number; transcript: string }) => void)
+			| undefined;
+		const transcription = new Promise<{
+			kind: 'speaking';
+			responseSeconds: number;
+			transcript: string;
+		}>((resolve) => {
+			finishTranscription = resolve;
+		});
+		const first = submitPracticeResponse(
+			db,
+			'learner-1',
+			{ practiceId, response: { kind: 'speaking', responseSeconds: 20 } },
+			{
+				resolveSpeakingResponse: async () => {
+					resolveCalls += 1;
+					notifyStarted?.();
+					return transcription;
+				}
+			}
+		);
+
+		await started;
+		await expect(
+			submitPracticeResponse(
+				db,
+				'learner-1',
+				{ practiceId, response: { kind: 'speaking', responseSeconds: 20 } },
+				{ resolveSpeakingResponse: async (response) => response }
+			)
+		).rejects.toThrow('Practice problem has already been answered.');
+		finishTranscription?.({
+			kind: 'speaking',
+			responseSeconds: 20,
+			transcript: 'I practiced English today.'
+		});
+		await expect(first).resolves.toMatchObject({
+			feedback: { kind: 'productive', scored: false }
+		});
+		expect(resolveCalls).toBe(1);
+		expect(updates[0]).toMatchObject({
+			status: 'answered',
+			metadataJson: { fallbackReason: 'processing_interrupted' }
+		});
+	});
+
+	it('keeps an unscored terminal response when transcription fails', async () => {
+		expect.assertions(5);
+		const practiceId = crypto.randomUUID();
+		const updates: Record<string, unknown>[] = [];
+
+		await expect(
+			submitPracticeResponse(
+				practiceDb(practiceId, updates),
+				'learner-1',
+				{ practiceId, response: { kind: 'speaking', responseSeconds: 20 } },
+				{ resolveSpeakingResponse: async () => Promise.reject(new Error('ASR unavailable')) }
+			)
+		).resolves.toMatchObject({
+			feedback: { kind: 'productive', scored: false, meetsTarget: null }
+		});
+		expect(updates).toHaveLength(2);
+		expect(updates[0]).toMatchObject({
+			status: 'answered',
+			feedbackJson: { kind: 'productive', scored: false },
+			metadataJson: { fallbackReason: 'processing_interrupted' }
+		});
+		expect(updates[1]).toMatchObject({
+			feedbackJson: { kind: 'productive', scored: false, meetsTarget: null },
+			metadataJson: { fallbackReason: 'transcription_failed' }
+		});
+		expect(updates[1]?.answer).toBeUndefined();
 	});
 
 	it('keeps every fallback signal and difficulty valid', async () => {
