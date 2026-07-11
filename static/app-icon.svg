@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ESL Study Guide">
+	<rect width="512" height="512" rx="112" fill="#0f766e" />
+	<path d="M112 124h208c44 0 80 36 80 80v184H192c-44 0-80-36-80-80V124Z" fill="#fff" />
+	<path d="M192 172h144M192 228h144M192 284h96" fill="none" stroke="#0f766e" stroke-linecap="round" stroke-width="28" />
+	<path d="M152 388c0-35 29-64 64-64h184v64H152Z" fill="#ccfbf1" />
+</svg>
