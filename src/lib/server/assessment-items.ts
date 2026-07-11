@@ -42,6 +42,7 @@ type AssessmentItem = {
 	answerKey?: string[];
 	rubric?: string[];
 	choices?: Choice[];
+	responseSignals?: Partial<Record<string, ErrorSignal[]>>;
 	serverOnlyAudioScript?: string;
 	serverOnlyAudioMetadata?: {
 		provider: 'workers-ai';
@@ -66,8 +67,8 @@ export const seedAssessmentItems = [
 		version: 1,
 		area: 'listening',
 		taskType: 'short_audio_comprehension',
-		prompt: 'Listen to a short conversation and choose the correct detail.',
-		errorSignalTags: ['detail', 'main_idea'],
+		prompt: 'Listen to a short message and choose the correct detail.',
+		errorSignalTags: ['detail'],
 		explanation: 'The key detail is the meeting time, not the place or activity.',
 		answerKey: ['b'],
 		choices: [
@@ -75,6 +76,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'At 8:50.' },
 			{ id: 'c', text: 'At 9:30.' }
 		],
+		responseSignals: {
+			a: ['detail'],
+			c: ['detail']
+		},
 		serverOnlyAudioScript: 'Mei says, "I will meet my coworker at eight fifty near the station."',
 		serverOnlyAudioMetadata: {
 			provider: 'workers-ai',
@@ -104,7 +109,7 @@ export const seedAssessmentItems = [
 		area: 'reading',
 		taskType: 'short_passage_comprehension',
 		prompt: 'Lina bought a jacket online. It was too small, so she sent it back the next day.',
-		errorSignalTags: ['detail', 'main_idea'],
+		errorSignalTags: ['detail'],
 		explanation: 'The passage says the jacket was too small, so that is why Lina returned it.',
 		answerKey: ['b'],
 		choices: [
@@ -112,6 +117,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'It was too small.' },
 			{ id: 'c', text: 'It arrived late.' }
 		],
+		responseSignals: {
+			a: ['detail'],
+			c: ['detail']
+		},
 		learnerTask: {
 			instructions: 'Why did Lina return the jacket?',
 			choices: [
@@ -143,6 +152,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'goes' },
 			{ id: 'c', text: 'going' }
 		],
+		responseSignals: {
+			a: ['subject_verb_agreement'],
+			c: ['verb_form']
+		},
 		learnerTask: {
 			instructions: 'Choose the best word to complete the sentence.',
 			choices: [
@@ -166,7 +179,7 @@ export const seedAssessmentItems = [
 		area: 'vocabulary',
 		taskType: 'word_in_context',
 		prompt: 'The train was delayed, so I arrived late.',
-		errorSignalTags: ['vocabulary_in_context', 'collocation'],
+		errorSignalTags: ['vocabulary_in_context'],
 		explanation: '"Delayed" means something happened later than planned.',
 		answerKey: ['c'],
 		choices: [
@@ -174,6 +187,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'very clean' },
 			{ id: 'c', text: 'later than planned' }
 		],
+		responseSignals: {
+			a: ['vocabulary_in_context'],
+			b: ['vocabulary_in_context']
+		},
 		learnerTask: {
 			instructions: 'What does "delayed" mean in this sentence?',
 			choices: [
@@ -296,6 +313,13 @@ export function getAssessmentItemAudioSource(itemId: string) {
 	};
 }
 
+export function getAssessmentResponseSignals(itemId: string, answer: string): ErrorSignal[] {
+	const item = getSeedAssessmentItems().find((candidate) => candidate.id === itemId);
+	const responseSignals = item?.responseSignals as
+		Partial<Record<string, ErrorSignal[]>> | undefined;
+	return responseSignals?.[answer] ?? [];
+}
+
 export function validateSeedAssessmentItems(items: readonly AssessmentItem[]) {
 	const requiredAreas = new Set<AssessmentArea>([
 		'listening',
@@ -329,6 +353,35 @@ export function validateSeedAssessmentItems(items: readonly AssessmentItem[]) {
 
 		if (!item.answerKey?.length && !item.rubric?.length) {
 			throw new Error(`Assessment Item ${item.id} needs an answer key or rubric`);
+		}
+
+		if (item.choices?.length) {
+			const choiceIds = new Set(item.choices.map((choice) => choice.id));
+			const answerKeys = new Set(item.answerKey ?? []);
+			if (!item.responseSignals) {
+				throw new Error(`Assessment Item ${item.id} needs response-to-signal mappings`);
+			}
+
+			for (const [answerId, signals] of Object.entries(item.responseSignals) as [
+				string,
+				ErrorSignal[]
+			][]) {
+				if (!choiceIds.has(answerId)) {
+					throw new Error(`Assessment Item ${item.id} maps a response that is not a choice`);
+				}
+				if (answerKeys.has(answerId)) {
+					throw new Error(`Assessment Item ${item.id} must not diagnose a correct response`);
+				}
+				if (signals.length === 0) {
+					throw new Error(`Assessment Item ${item.id} maps a response without an Error Signal`);
+				}
+			}
+
+			for (const choiceId of choiceIds) {
+				if (!answerKeys.has(choiceId) && !item.responseSignals[choiceId]?.length) {
+					throw new Error(`Assessment Item ${item.id} is missing a response-to-signal mapping`);
+				}
+			}
 		}
 
 		if (

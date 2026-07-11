@@ -1,7 +1,13 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { getLoginPage, signInUsername } from './data.remote';
 
-	await getLoginPage();
+	const data = await getLoginPage();
+
+	$effect(() => {
+		const redirectTo = signInUsername.result?.redirectTo ?? data.redirectTo;
+		if (redirectTo) void goto(redirectTo);
+	});
 </script>
 
 <svelte:head><title>Sign in</title></svelte:head>
@@ -41,4 +47,13 @@
 			{issue.message}
 		</p>
 	{/each}
+
+	{#if signInUsername.result?.redirectTo}
+		<p
+			class="rounded border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800"
+			role="status"
+		>
+			Signed in. Continuing to your first check…
+		</p>
+	{/if}
 </main>

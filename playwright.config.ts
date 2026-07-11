@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
 	webServer: {
-		command: 'pnpm build && pnpm preview',
+		command: 'pnpm build && pnpm preview:local',
 		port: 4173,
 		env: {
 			DATABASE_URL: 'file:local.db',
@@ -12,6 +12,9 @@ export default defineConfig({
 			GITHUB_CLIENT_SECRET: 'test-client-secret',
 			ADMIN_EMAILS: 'admin@example.com'
 		}
+	},
+	use: {
+		baseURL: 'http://127.0.0.1:4173'
 	},
 	testMatch: '**/*.e2e.{ts,js}'
 });

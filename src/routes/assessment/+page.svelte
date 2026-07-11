@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
 	import { getAssessmentPage, submitAssessment, submitPractice } from './data.remote';
 
 	const data = await getAssessmentPage();
@@ -16,6 +16,7 @@
 	let playingAudioId = $state<string | null>(null);
 	let audioTimes = $state<Record<string, number>>({});
 	let audioDurations = $state<Record<string, number>>({});
+	let resultsSection = $state<HTMLElement>();
 
 	let recorder: MediaRecorder | null = null;
 	let recordingStream: MediaStream | null = null;
@@ -25,7 +26,6 @@
 	const currentItem = $derived(data.items[currentIndex]);
 	const completedCount = $derived(data.items.filter(isItemComplete).length);
 	const allComplete = $derived(completedCount === totalItems);
-	const progressPercent = $derived(((currentIndex + 1) / totalItems) * 100);
 	const currentComplete = $derived(isItemComplete(currentItem));
 
 	function isItemComplete(item: (typeof data.items)[number] | undefined) {
@@ -36,12 +36,20 @@
 		return false;
 	}
 
-	function nextQuestion() {
-		if (currentIndex < totalItems - 1 && isItemComplete(currentItem)) currentIndex += 1;
+	async function showQuestion(index: number) {
+		currentIndex = index;
+		await tick();
+		document.getElementById(`assessment-item-${data.items[index]?.id}`)?.focus();
 	}
 
-	function previousQuestion() {
-		if (currentIndex > 0) currentIndex -= 1;
+	async function nextQuestion() {
+		if (currentIndex < totalItems - 1 && isItemComplete(currentItem)) {
+			await showQuestion(currentIndex + 1);
+		}
+	}
+
+	async function previousQuestion() {
+		if (currentIndex > 0) await showQuestion(currentIndex - 1);
 	}
 
 	function formatSeconds(value = 0) {
@@ -150,6 +158,11 @@
 		recordingStream?.getTracks().forEach((track) => track.stop());
 		for (const url of Object.values(recordingUrls)) URL.revokeObjectURL(url);
 	});
+
+	$effect(() => {
+		if (!submitAssessment.result?.saved) return;
+		void tick().then(() => resultsSection?.focus());
+	});
 </script>
 
 {#snippet audioPlayer(src: string, playerId: string, label: string)}
@@ -198,35 +211,59 @@
 <main class="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-4 py-8">
 	<header class="space-y-3">
 		<p class="text-sm font-medium text-teal-700">Learner</p>
-		<h1 class="text-4xl font-semibold text-zinc-950">ESL Assessment</h1>
+		<h1 class="text-4xl font-semibold text-zinc-950">Find what to practice first</h1>
 		<p class="max-w-xl text-lg text-zinc-700">
-			Complete one task for each area. Your answers will be saved for Skill Diagnosis.
+			This first check takes about 10 minutes. You will complete one short task in each area and get
+			a starting practice target—not a grade or a full language-level result.
 		</p>
 		<p class="text-sm text-zinc-600">Signed in as {data.learnerName}</p>
 	</header>
 
 	{#if submitAssessment.result?.saved}
-		<section class="space-y-2 border-l-4 border-teal-600 bg-teal-50 px-5 py-4">
-			<h2 class="text-xl font-semibold text-zinc-950">Assessment saved</h2>
+		<section class="space-y-2 border-l-4 border-teal-600 bg-teal-50 px-5 py-4" aria-live="polite">
+			<h2 class="text-xl font-semibold text-zinc-950">First check saved</h2>
 			<p class="text-zinc-700">
-				Attempt {submitAssessment.result.attemptId} has a Skill Profile and Study Plan.
+				Your answers are saved. The notes below show what one short task can tell us and where to
+				practice next.
 			</p>
 		</section>
 
-		<section class="space-y-5 border-t border-zinc-200 pt-6">
-			<h2 class="text-2xl font-semibold text-zinc-950">Skill Profile</h2>
+		<section
+			class="space-y-5 border-t border-zinc-200 pt-6"
+			tabindex="-1"
+			bind:this={resultsSection}
+		>
+			<h2 class="text-2xl font-semibold text-zinc-950">Your first study snapshot</h2>
+			<p class="max-w-2xl text-zinc-700">
+				One task per area can point us toward useful practice, but it cannot reliably assign a skill
+				level. We will need a few more examples before making stronger claims.
+			</p>
 			<div class="grid gap-3 sm:grid-cols-2">
-				{#each Object.entries(submitAssessment.result.skillProfile.skillBands) as [area, band] (area)}
+				{#each Object.entries(submitAssessment.result.skillProfile.evidence) as [area, evidence] (area)}
 					<div class="rounded border border-zinc-200 p-3">
 						<p class="text-sm font-medium uppercase text-teal-700">{area.replace('_', '/')}</p>
-						<p class="text-lg font-semibold text-zinc-950">{band}</p>
+						<p class="mt-1 text-sm font-medium text-zinc-950">
+							{evidence.taskCount === 1 ? 'One short task' : 'No task saved'}
+						</p>
+						<p class="mt-1 text-sm text-zinc-700">{evidence.summary}</p>
 					</div>
 				{/each}
 			</div>
 
+			<div class="grid gap-3 sm:grid-cols-2">
+				<div class="rounded border border-zinc-200 p-3 text-sm text-zinc-700">
+					<p class="font-medium text-zinc-950">Writing sample</p>
+					<p>{submitAssessment.result.skillProfile.rubricOutputs.writing.feedback}</p>
+				</div>
+				<div class="rounded border border-zinc-200 p-3 text-sm text-zinc-700">
+					<p class="font-medium text-zinc-950">Speaking response note</p>
+					<p>{submitAssessment.result.skillProfile.rubricOutputs.speaking.feedback}</p>
+				</div>
+			</div>
+
 			{#if submitAssessment.result.skillProfile.priorityWeaknesses.length}
 				<div class="space-y-2">
-					<h3 class="text-xl font-semibold text-zinc-950">Practice first</h3>
+					<h3 class="text-xl font-semibold text-zinc-950">A helpful place to start</h3>
 					<ol class="list-decimal space-y-1 pl-5 text-zinc-700">
 						{#each submitAssessment.result.skillProfile.priorityWeaknesses as weakness (`${weakness.area}-${weakness.signal}`)}
 							<li>{weakness.reason}</li>
@@ -241,8 +278,8 @@
 					{#each submitAssessment.result.skillProfile.missedAnswerExamples as example (example.itemId)}
 						<div class="rounded border border-zinc-200 p-3 text-sm text-zinc-700">
 							<p class="font-medium text-zinc-950">{example.area.replace('_', '/')}</p>
-							<p>You answered: {example.learnerAnswer}</p>
-							<p>Expected: {example.expectedAnswer}</p>
+							<p>You chose: {example.learnerAnswer}</p>
+							<p>Best answer: {example.expectedAnswer}</p>
 							<p>{example.explanation}</p>
 						</div>
 					{/each}
@@ -250,9 +287,18 @@
 			{/if}
 
 			<div class="space-y-2">
-				<h3 class="text-xl font-semibold text-zinc-950">Study Plan</h3>
+				<h3 class="text-xl font-semibold text-zinc-950">Today</h3>
 				<ul class="list-disc space-y-1 pl-5 text-zinc-700">
 					{#each submitAssessment.result.studyPlan.today as task (task)}
+						<li>{task}</li>
+					{/each}
+				</ul>
+			</div>
+
+			<div class="space-y-2">
+				<h3 class="text-xl font-semibold text-zinc-950">This week</h3>
+				<ul class="list-disc space-y-1 pl-5 text-zinc-700">
+					{#each submitAssessment.result.studyPlan.thisWeek as task (task)}
 						<li>{task}</li>
 					{/each}
 				</ul>
@@ -260,7 +306,9 @@
 		</section>
 	{/if}
 
-	{const practice = $derived(submitAssessment.result?.practice ?? data.practice)}
+	{const practice = $derived(
+		submitPractice.result?.nextPractice ?? submitAssessment.result?.practice ?? data.practice
+	)}
 	{#if practice?.problem}
 		<section class="space-y-4 border-t border-zinc-200 pt-6">
 			<div class="space-y-2">
@@ -268,32 +316,16 @@
 					Focus: {practice.problem.targetArea.replace('_', '/')} -
 					{practice.problem.targetSignal.replaceAll('_', ' ')}
 				</p>
-				<h2 class="text-2xl font-semibold text-zinc-950">Practice Problem</h2>
+				<h2 class="text-2xl font-semibold text-zinc-950">
+					{submitPractice.result?.nextPractice ? 'Next practice problem' : 'Practice problem'}
+				</h2>
 				<p class="text-zinc-700">{practice.problem.prompt}</p>
 			</div>
-
-			<form {...submitPractice} class="space-y-4">
-				<input type="hidden" name="problemJson" value={JSON.stringify(practice.problem)} />
-				<input type="hidden" name="metadataJson" value={JSON.stringify(practice.metadata)} />
-				<div class="space-y-3">
-					{#each practice.problem.choices as choice (choice.id)}
-						<label class="flex gap-3 rounded border border-zinc-300 p-3">
-							<input type="radio" name="answer" value={choice.id} required />
-							<span>{choice.text}</span>
-						</label>
-					{/each}
-				</div>
-				<button
-					class="rounded bg-zinc-950 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
-					disabled={submitPractice.pending > 0}
-				>
-					{submitPractice.pending > 0 ? 'Checking...' : 'Check answer'}
-				</button>
-			</form>
 
 			{#if submitPractice.result?.feedback}
 				<p
 					class="rounded border px-3 py-2 text-sm"
+					role="status"
 					class:border-teal-200={submitPractice.result.feedback.correct}
 					class:bg-teal-50={submitPractice.result.feedback.correct}
 					class:text-teal-800={submitPractice.result.feedback.correct}
@@ -301,37 +333,64 @@
 					class:bg-red-50={!submitPractice.result.feedback.correct}
 					class:text-red-700={!submitPractice.result.feedback.correct}
 				>
-					{submitPractice.result.feedback.message}
+					Last answer: {submitPractice.result.feedback.message}
 				</p>
 			{/if}
+
+			{#key practice.problem.id}
+				<form {...submitPractice} class="space-y-4">
+					<input type="hidden" name="problemJson" value={JSON.stringify(practice.problem)} />
+					<input type="hidden" name="metadataJson" value={JSON.stringify(practice.metadata)} />
+					<div class="space-y-3">
+						{#each practice.problem.choices as choice (choice.id)}
+							<label class="flex gap-3 rounded border border-zinc-300 p-3">
+								<input type="radio" name="answer" value={choice.id} required />
+								<span>{choice.text}</span>
+							</label>
+						{/each}
+					</div>
+					<button
+						class="rounded bg-zinc-950 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+						disabled={submitPractice.pending > 0}
+					>
+						{submitPractice.pending > 0 ? 'Checking...' : 'Check answer'}
+					</button>
+				</form>
+			{/key}
 		</section>
 	{/if}
 
 	{#each submitAssessment.fields.allIssues() ?? [] as issue, index (`${issue.message}-${index}`)}
-		<p class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+		<p class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
 			{issue.message}
 		</p>
 	{/each}
 
 	{#each submitPractice.fields.allIssues() ?? [] as issue, index (`${issue.message}-${index}`)}
-		<p class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+		<p class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
 			{issue.message}
 		</p>
 	{/each}
 
 	<form {...submitAssessment} class="space-y-8" enctype="multipart/form-data">
-		<div class="space-y-2">
+		<div class="space-y-2" aria-label="Assessment progress">
 			<div class="flex items-center justify-between text-sm font-medium text-zinc-700">
 				<span>Question {currentIndex + 1} of {totalItems}</span>
 				<span>{completedCount} complete</span>
 			</div>
-			<div class="h-2 overflow-hidden rounded bg-zinc-100">
-				<div class="h-full bg-teal-600" style:width={`${progressPercent}%`}></div>
-			</div>
+			<progress
+				class="h-2 w-full overflow-hidden rounded accent-teal-700"
+				value={currentIndex + 1}
+				max={totalItems}
+			>
+				Question {currentIndex + 1} of {totalItems}
+			</progress>
 		</div>
 
 		{#each data.items as item, index (item.id)}
 			<section
+				id={`assessment-item-${item.id}`}
+				tabindex="-1"
 				class={['space-y-5 border-t border-zinc-200 pt-6', index !== currentIndex && 'hidden']}
 			>
 				<input type="hidden" name={`responses[${index}].itemId`} value={item.id} />
@@ -372,6 +431,7 @@
 				{:else if item.area === 'writing'}
 					<textarea
 						class="min-h-40 w-full rounded border border-zinc-300 px-3 py-2"
+						aria-label="Writing response"
 						name={`responses[${index}].answer`}
 						value={answers[item.id] ?? ''}
 						oninput={(event) => {
@@ -384,7 +444,7 @@
 						value={speakingSeconds[item.id] ?? ''}
 					/>
 					<label class="flex flex-col gap-1 text-sm font-medium text-zinc-800">
-						Optional transcript
+						Optional transcript to help review language
 						<textarea
 							class="min-h-24 w-full rounded border border-zinc-300 px-3 py-2"
 							name={`responses[${index}].speakingTranscript`}
@@ -436,12 +496,19 @@
 							)}
 						{/if}
 						{#if recordingErrors[item.id]}
-							<p class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+							<p
+								class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+								role="alert"
+							>
 								{recordingErrors[item.id]}
 							</p>
 						{/if}
 					</div>
-					<p class="text-sm text-zinc-600">Audio is transcribed for feedback and is not stored.</p>
+					<p class="text-sm text-zinc-600">
+						Aim for about 20-30 seconds so there is enough language to review. Your audio is not
+						stored; when a transcript is available, it can help us review language. Pronunciation is
+						not scored.
+					</p>
 				{/if}
 			</section>
 		{/each}
@@ -451,7 +518,7 @@
 				type="button"
 				class="rounded border border-zinc-300 px-4 py-2 font-medium text-zinc-800 disabled:cursor-not-allowed disabled:text-zinc-400"
 				disabled={currentIndex === 0}
-				onclick={previousQuestion}
+				onclick={() => void previousQuestion()}
 			>
 				Back
 			</button>
@@ -460,7 +527,7 @@
 					type="button"
 					class="rounded bg-zinc-950 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
 					disabled={!currentComplete || recordingItemId !== null}
-					onclick={nextQuestion}
+					onclick={() => void nextQuestion()}
 				>
 					Next
 				</button>

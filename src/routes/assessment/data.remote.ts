@@ -91,7 +91,9 @@ export const submitAssessment = form(assessmentFormSchema, async (data) => {
 	} catch (error) {
 		if (error instanceof AssessmentAttemptInputError) invalid(error.message);
 		if (error instanceof AiOutputValidationError) {
-			invalid('AI assessment output could not be validated. Try again.');
+			invalid(
+				'We could not read the recorded response. Record it again or add a short transcript.'
+			);
 		}
 		throw error;
 	}

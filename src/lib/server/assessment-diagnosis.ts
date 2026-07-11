@@ -1,12 +1,19 @@
-import { getSeedAssessmentItems, type AssessmentArea, type ErrorSignal } from './assessment-items';
+import {
+	getAssessmentResponseSignals,
+	getSeedAssessmentItems,
+	type AssessmentArea,
+	type ErrorSignal
+} from './assessment-items';
 import type { AttemptResponse, AttemptSelectedItem } from './db/schema';
-import { getWorkersAiRuntime, runWorkersAiJson } from './workers-ai';
-import { z } from 'zod';
 
-export type SkillBand = 'emerging' | 'developing' | 'functional' | 'strong';
+export type AssessmentEvidence = {
+	taskCount: number;
+	status: 'answered_correctly' | 'needs_practice' | 'sample_saved' | 'not_available';
+	summary: string;
+};
 
 export type SkillProfile = {
-	skillBands: Record<AssessmentArea, SkillBand>;
+	evidence: Record<AssessmentArea, AssessmentEvidence>;
 	priorityWeaknesses: { area: AssessmentArea; signal: ErrorSignal; reason: string }[];
 	missedAnswerExamples: {
 		area: AssessmentArea;
@@ -17,8 +24,8 @@ export type SkillProfile = {
 		errorSignals: ErrorSignal[];
 	}[];
 	rubricOutputs: {
-		writing: { score: number; signals: ErrorSignal[]; feedback: string };
-		speaking: { score: number; signals: ErrorSignal[]; feedback: string };
+		writing: { score: null; signals: ErrorSignal[]; feedback: string };
+		speaking: { score: null; signals: ErrorSignal[]; feedback: string };
 		pronunciation: { score: null; signals: ErrorSignal[]; feedback: string };
 	};
 };
@@ -42,8 +49,14 @@ type DiagnosisInput = {
 	responses: AttemptResponse[];
 };
 
-const bandFromScore = (score: number): SkillBand =>
-	score >= 3 ? 'strong' : score >= 2 ? 'functional' : score >= 1 ? 'developing' : 'emerging';
+const assessmentAreas = [
+	'listening',
+	'reading',
+	'grammar_usage',
+	'vocabulary',
+	'writing',
+	'speaking'
+] as const satisfies readonly AssessmentArea[];
 
 const signalLabel: Record<ErrorSignal, string> = {
 	main_idea: 'main ideas',
@@ -62,86 +75,6 @@ const signalLabel: Record<ErrorSignal, string> = {
 	fluency: 'fluency'
 };
 
-const assessmentAreas = [
-	'listening',
-	'reading',
-	'grammar_usage',
-	'vocabulary',
-	'writing',
-	'speaking'
-] as const satisfies readonly AssessmentArea[];
-const errorSignals = [
-	'main_idea',
-	'detail',
-	'vocabulary_in_context',
-	'verb_form',
-	'subject_verb_agreement',
-	'article_determiner',
-	'plural_countability',
-	'preposition',
-	'pronoun_choice',
-	'sentence_control',
-	'collocation',
-	'task_completion',
-	'clarity',
-	'fluency'
-] as const satisfies readonly ErrorSignal[];
-const skillBandSchema = z.enum(['emerging', 'developing', 'functional', 'strong']);
-const areaSchema = z.enum(assessmentAreas);
-const signalSchema = z.enum(errorSignals);
-const rubricSchema = z.object({
-	score: z.number().int().min(0).max(3),
-	signals: z.array(signalSchema),
-	feedback: z.string().trim().min(1).max(500)
-});
-const skillProfileSchema = z.object({
-	skillBands: z.object({
-		listening: skillBandSchema,
-		reading: skillBandSchema,
-		grammar_usage: skillBandSchema,
-		vocabulary: skillBandSchema,
-		writing: skillBandSchema,
-		speaking: skillBandSchema
-	}),
-	priorityWeaknesses: z
-		.array(
-			z.object({
-				area: areaSchema,
-				signal: signalSchema,
-				reason: z.string().trim().min(1).max(300)
-			})
-		)
-		.max(3),
-	missedAnswerExamples: z.array(
-		z.object({
-			area: areaSchema,
-			itemId: z.string().trim().min(1),
-			learnerAnswer: z.string(),
-			expectedAnswer: z.string(),
-			explanation: z.string().trim().min(1),
-			errorSignals: z.array(signalSchema)
-		})
-	),
-	rubricOutputs: z.object({
-		writing: rubricSchema,
-		speaking: rubricSchema,
-		pronunciation: z.object({
-			score: z.null(),
-			signals: z.array(signalSchema),
-			feedback: z.string().trim().min(1).max(500)
-		})
-	})
-}) satisfies z.ZodType<SkillProfile>;
-const studyPlanSchema = z.object({
-	today: z.array(z.string().trim().min(1).max(200)).max(5),
-	thisWeek: z.array(z.string().trim().min(1).max(200)).max(5),
-	targetSignals: z.array(signalSchema).max(5)
-}) satisfies z.ZodType<StudyPlan>;
-const aiDiagnosisSchema = z.object({
-	skillProfile: skillProfileSchema,
-	studyPlan: studyPlanSchema
-});
-
 const incrementSignals = (
 	counts: Map<ErrorSignal, number>,
 	areas: Map<ErrorSignal, AssessmentArea>,
@@ -154,21 +87,20 @@ const incrementSignals = (
 	}
 };
 
+const choiceText = (item: ReturnType<typeof getSeedAssessmentItems>[number], choiceId: string) =>
+	item.choices?.find((choice) => choice.id === choiceId)?.text ?? choiceId;
+
 function diagnoseAssessmentAttemptDeterministic({ selectedItems, responses }: DiagnosisInput): {
 	skillProfile: SkillProfile;
 	studyPlan: StudyPlan;
 	diagnosisMetadata: DiagnosisMetadata;
 } {
 	const items = new Map(getSeedAssessmentItems().map((item) => [item.id, item]));
-	const skillBands = {} as Record<AssessmentArea, SkillBand>;
+	const evidence = {} as Record<AssessmentArea, AssessmentEvidence>;
 	const signalCounts = new Map<ErrorSignal, number>();
 	const signalAreas = new Map<ErrorSignal, AssessmentArea>();
 	const missedAnswerExamples: SkillProfile['missedAnswerExamples'] = [];
-
-	let writingScore = 1;
-	let writingSignals: ErrorSignal[] = [];
-	let speakingScore = 1;
-	let speakingSignals: ErrorSignal[] = [];
+	let speakingTranscriptSaved = false;
 
 	for (const response of responses) {
 		const item = items.get(response.itemId);
@@ -176,83 +108,108 @@ function diagnoseAssessmentAttemptDeterministic({ selectedItems, responses }: Di
 
 		if (response.kind === 'objective') {
 			const correct = item.answerKey?.includes(response.answer) ?? false;
-			skillBands[response.area] = bandFromScore(correct ? 2 : 0);
+			evidence[response.area] = {
+				taskCount: 1,
+				status: correct ? 'answered_correctly' : 'needs_practice',
+				summary: correct
+					? 'You answered one short question correctly. Try another example later to confirm it.'
+					: 'This one response suggests a helpful practice target. More examples are needed before naming a skill level.'
+			};
+
 			if (!correct) {
-				incrementSignals(signalCounts, signalAreas, response.area, item.errorSignalTags);
+				const signals = getAssessmentResponseSignals(response.itemId, response.answer);
+				incrementSignals(signalCounts, signalAreas, response.area, signals);
 				missedAnswerExamples.push({
 					area: response.area,
 					itemId: response.itemId,
-					learnerAnswer: response.answer,
-					expectedAnswer: item.answerKey?.join(', ') ?? 'n/a',
+					learnerAnswer: choiceText(item, response.answer),
+					expectedAnswer: choiceText(item, item.answerKey?.[0] ?? 'n/a'),
 					explanation: item.explanation,
-					errorSignals: item.errorSignalTags
+					errorSignals: signals
 				});
 			}
 			continue;
 		}
 
 		if (response.kind === 'writing_text') {
-			const sentenceCount = response.answer.split(/[.!?]+/).filter((part) => part.trim()).length;
-			writingSignals = sentenceCount >= 4 ? [] : ['task_completion', 'sentence_control'];
-			writingScore = sentenceCount >= 4 ? 2 : 0;
-			skillBands.writing = bandFromScore(writingScore);
-			incrementSignals(signalCounts, signalAreas, 'writing', writingSignals);
+			evidence.writing = {
+				taskCount: 1,
+				status: 'sample_saved',
+				summary:
+					'One writing sample is saved. We need more language evidence before identifying a grammar pattern.'
+			};
 			continue;
 		}
 
-		speakingSignals = response.metadata.responseSeconds >= 20 ? [] : ['fluency', 'task_completion'];
-		speakingScore = response.metadata.responseSeconds >= 20 ? 2 : 0;
-		skillBands.speaking = bandFromScore(speakingScore);
-		incrementSignals(signalCounts, signalAreas, 'speaking', speakingSignals);
+		speakingTranscriptSaved = Boolean(response.metadata.transcript);
+		evidence.speaking = {
+			taskCount: 1,
+			status: 'sample_saved',
+			summary:
+				'One speaking attempt is logged. Audio is not stored; a transcript may be saved when available. This is not a fluency or pronunciation score.'
+		};
+	}
+
+	for (const area of assessmentAreas) {
+		if (!evidence[area]) {
+			evidence[area] = {
+				taskCount: 0,
+				status: 'not_available',
+				summary: 'No response was available for this area.'
+			};
+		}
 	}
 
 	const priorityWeaknesses = [...signalCounts.entries()]
 		.sort((a, b) => b[1] - a[1])
 		.slice(0, 3)
 		.map(([signal]) => ({
-			area: signalAreas.get(signal) ?? 'writing',
+			area: signalAreas.get(signal) ?? 'grammar_usage',
 			signal,
-			reason: `Observed ${signalLabel[signal]} during this assessment.`
+			reason: `This response suggests starting with ${signalLabel[signal]}. We will use more examples before treating it as a stable need.`
 		}));
 
 	const targetSignals = priorityWeaknesses.map((weakness) => weakness.signal);
-	const studyPlan = {
-		today: targetSignals.map(
-			(signal) => `Practice ${signalLabel[signal]} with short daily-life answers.`
-		),
-		thisWeek: targetSignals.map(
-			(signal) => `Review ${signalLabel[signal]} after 10 practice answers.`
-		),
+	const studyPlan: StudyPlan = {
+		today: targetSignals.length
+			? targetSignals.map(
+					(signal) =>
+						`Try a short ${signalLabel[signal]} practice set. Your next answers will decide whether to repeat or move on.`
+				)
+			: ['Start with a short verb-form check-in to collect a little more evidence.'],
+		thisWeek: targetSignals.length
+			? targetSignals.map(
+					(signal) =>
+						`Return to ${signalLabel[signal]} for a few new examples before expecting a level estimate.`
+				)
+			: ['Come back for a few more short examples before expecting a skill-level estimate.'],
 		targetSignals
 	};
 
 	return {
 		skillProfile: {
-			skillBands,
+			evidence,
 			priorityWeaknesses,
 			missedAnswerExamples,
 			rubricOutputs: {
 				writing: {
-					score: writingScore,
-					signals: writingSignals,
+					score: null,
+					signals: [],
 					feedback:
-						writingScore >= 2
-							? 'Writing completed the short task.'
-							: 'Writing needs a complete 4-5 sentence answer.'
+						'Your writing sample is saved. One short response is not enough to identify grammar patterns reliably.'
 				},
 				speaking: {
-					score: speakingScore,
-					signals: speakingSignals,
-					feedback:
-						speakingScore >= 2
-							? 'Speaking response length supports basic task completion.'
-							: 'Speaking response was too short to show enough fluency.'
+					score: null,
+					signals: [],
+					feedback: speakingTranscriptSaved
+						? 'A transcript of one speaking response is saved. We need more samples before making a language judgement.'
+						: 'One speaking attempt is logged. The audio is not stored; a transcript can help us review language patterns.'
 				},
 				pronunciation: {
 					score: null,
 					signals: [],
 					feedback:
-						'Pronunciation scoring is deferred; speaking feedback uses transcript-level surface analysis.'
+						'Pronunciation is not scored in this first check. It needs dedicated speech evaluation.'
 				}
 			}
 		},
@@ -260,7 +217,7 @@ function diagnoseAssessmentAttemptDeterministic({ selectedItems, responses }: Di
 		diagnosisMetadata: {
 			schemaVersion: 1,
 			provider: 'local',
-			model: 'deterministic-diagnosis',
+			model: 'evidence-calibrated-diagnosis',
 			modelVersion: '2026-07-08',
 			selectedItems
 		}
@@ -272,55 +229,5 @@ export async function diagnoseAssessmentAttempt(input: DiagnosisInput): Promise<
 	studyPlan: StudyPlan;
 	diagnosisMetadata: DiagnosisMetadata;
 }> {
-	const deterministic = diagnoseAssessmentAttemptDeterministic(input);
-	const runtime = getWorkersAiRuntime();
-	if (!runtime) return deterministic;
-
-	let result;
-	try {
-		result = await runWorkersAiJson(
-			runtime,
-			[
-				{
-					role: 'system',
-					content:
-						'Return only JSON. Diagnose ESL assessment responses into the exact requested shape. Do not score pronunciation.'
-				},
-				{
-					role: 'user',
-					content: JSON.stringify({
-						requiredShape: {
-							skillProfile: 'SkillProfile',
-							studyPlan: 'StudyPlan'
-						},
-						allowedAreas: assessmentAreas,
-						allowedSignals: errorSignals,
-						allowedSkillBands: ['emerging', 'developing', 'functional', 'strong'],
-						notes: [
-							'Use objective answer correctness from the baseline.',
-							'Use writing text for writing rubric feedback.',
-							'Use speaking transcript when present; otherwise use duration metadata only.',
-							'Pronunciation score must be null with no pronunciation scoring.'
-						],
-						input,
-						baseline: deterministic
-					})
-				}
-			],
-			aiDiagnosisSchema
-		);
-	} catch {
-		return deterministic;
-	}
-
-	return {
-		...result,
-		diagnosisMetadata: {
-			schemaVersion: 1,
-			provider: runtime.provider,
-			model: runtime.textModelId,
-			modelVersion: '2026-07-08',
-			selectedItems: input.selectedItems
-		}
-	};
+	return diagnoseAssessmentAttemptDeterministic(input);
 }

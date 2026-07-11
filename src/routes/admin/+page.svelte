@@ -42,21 +42,21 @@
 				</div>
 				{#if attempt.skillProfileJson}
 					<div class="grid gap-2 sm:grid-cols-3">
-						{#each Object.entries(attempt.skillProfileJson.skillBands) as [area, band] (area)}
+						{#each Object.entries(attempt.skillProfileJson.evidence) as [area, evidence] (area)}
 							<p class="text-sm text-zinc-700">
 								<span class="font-medium text-zinc-950">{area.replace('_', '/')}:</span>
-								{band}
+								{evidence.taskCount} task{evidence.taskCount === 1 ? '' : 's'} - {evidence.status}
 							</p>
 						{/each}
 					</div>
 					{const feedback = attempt.skillProfileJson.rubricOutputs}
 					<div class="space-y-1 text-sm text-zinc-700">
 						<p>
-							<span class="font-medium text-zinc-950">Writing AI feedback:</span>
+							<span class="font-medium text-zinc-950">Writing sample note:</span>
 							{feedback.writing.feedback}
 						</p>
 						<p>
-							<span class="font-medium text-zinc-950">Speaking AI feedback:</span>
+							<span class="font-medium text-zinc-950">Speaking response note:</span>
 							{feedback.speaking.feedback}
 						</p>
 						<p>

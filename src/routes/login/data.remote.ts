@@ -1,5 +1,5 @@
 import { form, getRequestEvent, query } from '$app/server';
-import { invalid, redirect } from '@sveltejs/kit';
+import { invalid } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
 import { z } from 'zod';
 import { getAuth } from '$lib/server/auth';
@@ -15,13 +15,14 @@ export const getLoginPage = query(() => {
 	const event = getRequestEvent();
 
 	if (event.locals.user) {
-		return redirect(
-			302,
-			redirectForRole(fixedAccountRoleForUsername(event.locals.user.username ?? '') ?? 'learner')
-		);
+		return {
+			redirectTo: redirectForRole(
+				fixedAccountRoleForUsername(event.locals.user.username ?? '') ?? 'learner'
+			)
+		};
 	}
 
-	return {};
+	return { redirectTo: undefined };
 });
 
 export const signInUsername = form(usernameAuthSchema, async (data) => {
@@ -38,5 +39,5 @@ export const signInUsername = form(usernameAuthSchema, async (data) => {
 		invalid('Unexpected error');
 	}
 
-	return redirect(302, redirectForRole(role));
+	return { redirectTo: redirectForRole(role) };
 });

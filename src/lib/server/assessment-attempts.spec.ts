@@ -5,7 +5,7 @@ import type { Db } from './db';
 
 describe('saveAssessmentAttempt', () => {
 	it('saves one diagnosed attempt with all six assessed areas', async () => {
-		expect.assertions(12);
+		expect.assertions(13);
 
 		const formData = new FormData();
 		for (const item of getLearnerAssessmentItems()) {
@@ -37,7 +37,7 @@ describe('saveAssessmentAttempt', () => {
 			selectedItemsJson: { area: string }[];
 			responsesJson: { area: string; kind: string; metadata?: unknown }[];
 			skillProfileJson: {
-				skillBands: Record<string, string>;
+				evidence: Record<string, { status: string; summary: string }>;
 				priorityWeaknesses: { signal: string }[];
 				rubricOutputs: { pronunciation: { score: null; feedback: string } };
 			};
@@ -73,17 +73,18 @@ describe('saveAssessmentAttempt', () => {
 			kind: 'speaking_metadata',
 			metadata: { representedBy: 'temporary_metadata', responseSeconds: 42 }
 		});
-		expect(row.skillProfileJson.skillBands.writing).toBe('emerging');
+		expect(row.skillProfileJson.evidence.writing.status).toBe('sample_saved');
+		expect(row.skillProfileJson.evidence.speaking.summary).toContain('not a fluency');
 		expect(row.skillProfileJson.priorityWeaknesses.length).toBeGreaterThan(0);
 		expect(row.skillProfileJson.rubricOutputs.pronunciation).toEqual({
 			score: null,
 			signals: [],
 			feedback:
-				'Pronunciation scoring is deferred; speaking feedback uses transcript-level surface analysis.'
+				'Pronunciation is not scored in this first check. It needs dedicated speech evaluation.'
 		});
 		expect(row.studyPlanJson.today.length).toBeGreaterThan(0);
 		expect(row.diagnosisMetadataJson).toMatchObject({
-			model: 'deterministic-diagnosis',
+			model: 'evidence-calibrated-diagnosis',
 			schemaVersion: 1
 		});
 		expect(result.status).toBe('skill_diagnosed');

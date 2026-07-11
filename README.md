@@ -33,4 +33,6 @@ pnpm build
 pnpm preview
 ```
 
+`pnpm preview:local` starts the built Worker with local D1 and deterministic AI fallbacks, so the full learner flow can be exercised without a remote Workers AI session.
+
 Use `pnpm db:generate` after changing `src/lib/server/db/schema.ts`.
