@@ -21,6 +21,7 @@
 	let showNewIntake = $state(!page.state);
 	let timeZone = $state('UTC');
 	let stepHeading: HTMLHeadingElement | undefined = $state();
+	let resultsHeading: HTMLHeadingElement | undefined = $state();
 	let recordingState = $state<'idle' | 'starting' | 'recording'>('idle');
 	let recordingItemId = $state<string | null>(null);
 	let recordingSeconds = $state(0);
@@ -148,7 +149,7 @@
 		<h1 class="text-3xl font-semibold text-zinc-950 sm:text-4xl">Find the right place to begin</h1>
 		<p class="max-w-2xl text-zinc-700">
 			Complete 14 short tasks in about 15–20 minutes. Every step is saved, so you can safely leave
-			and return.
+			and return. This gives a starting practice profile, not a grade or full language-level result.
 		</p>
 	</header>
 
@@ -227,12 +228,12 @@
 					<span>Task {currentIndex + 1} of {assessment.items.length}</span>
 					<span>{savedCount} saved</span>
 				</div>
-				<div class="h-2 overflow-hidden rounded-full bg-zinc-200">
-					<div
-						class="h-full rounded-full bg-teal-600"
-						style={`width: ${((currentIndex + 1) / assessment.items.length) * 100}%`}
-					></div>
-				</div>
+				<progress
+					class="h-2 w-full overflow-hidden rounded-full accent-teal-700"
+					value={currentIndex + 1}
+					max={assessment.items.length}
+					aria-label={`Assessment progress: task ${currentIndex + 1} of ${assessment.items.length}`}
+				></progress>
 			</div>
 
 			{const stepForm = saveAssessmentResponse.for(currentItem.id)}
@@ -312,7 +313,7 @@
 									class="min-h-11 rounded-lg bg-zinc-950 px-4 py-2 font-medium text-white"
 									onclick={() => startRecording(currentItem.id)}
 									disabled={recordingState !== 'idle'}
-									>{recordingState === 'starting' ? 'Starting…' : 'Record'}</button
+									>{recordingState === 'starting' ? 'Starting…' : 'Record answer'}</button
 								>
 								{#if recordingState === 'recording' && recordingItemId === currentItem.id}
 									<button
@@ -362,8 +363,14 @@
 										: ''}</textarea
 								>
 							</label>
-							{#if recordingError}<p class="text-sm text-red-800">{recordingError}</p>{/if}
+							{#if recordingError}
+								<p class="text-sm text-red-800" role="alert">{recordingError}</p>
+							{/if}
 						</div>
+						<p class="text-sm text-zinc-600">
+							Aim for about 20–30 seconds so there is enough language to review. Your audio is
+							transcribed only to create feedback and is not stored. Pronunciation is not scored.
+						</p>
 					{/if}
 
 					<div
@@ -404,6 +411,8 @@
 						if (await form.submit()) {
 							assessment = form.result?.state ?? assessment;
 							window.scrollTo({ top: 0, behavior: 'smooth' });
+							await tick();
+							resultsHeading?.focus();
 						}
 					})}
 					class="rounded-xl border border-teal-200 bg-teal-50 p-5"
@@ -425,11 +434,21 @@
 				<p class="text-sm font-semibold uppercase tracking-wide text-teal-800">
 					Diagnosis complete
 				</p>
-				<h2 class="mt-2 text-2xl font-semibold text-zinc-950">Your Skill Profile is ready</h2>
+				<h2
+					class="mt-2 text-2xl font-semibold text-zinc-950"
+					tabindex="-1"
+					bind:this={resultsHeading}
+				>
+					Your Skill Profile is ready
+				</h2>
 				<p class="mt-2 text-zinc-700">
-					Quality: {assessment.skillProfile.diagnosisQuality === 'full'
-						? 'Full diagnosis'
-						: 'Limited diagnosis'}
+					These short tasks give a starting practice profile, not a grade or a full language-level
+					result.
+				</p>
+				<p class="mt-2 text-zinc-700">
+					Available feedback: {assessment.skillProfile.diagnosisQuality === 'full'
+						? 'all task feedback is available'
+						: 'some feedback is unavailable'}
 				</p>
 				{#if assessment.skillProfile.diagnosisQuality === 'limited'}
 					<p class="mt-2 text-sm text-amber-900">
@@ -454,7 +473,9 @@
 			</div>
 
 			<div class="rounded-2xl border border-zinc-200 bg-white p-6">
-				<h2 class="text-xl font-semibold text-zinc-950">Practice priorities</h2>
+				<h2 class="text-xl font-semibold text-zinc-950">
+					Practice priorities from these responses
+				</h2>
 				{#if assessment.studyPlan.targets.length}
 					<ol class="mt-4 space-y-3">
 						{#each assessment.studyPlan.targets as target (target.signal)}

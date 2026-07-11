@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import {
 	getAssessmentItemVersion,
+	getAssessmentResponseSignals,
 	type AssessmentArea,
 	type AssessmentItem,
 	type ErrorSignal
 } from './assessment-items';
 import type { AttemptResponse, AttemptSelectedItem } from './db/schema';
-import { getWorkersAiRuntime, runWorkersAiJson, type WorkersAiRuntime } from './workers-ai';
 
 const assessmentAreas = [
 	'listening',
@@ -16,13 +16,8 @@ const assessmentAreas = [
 	'writing',
 	'speaking'
 ] as const satisfies readonly AssessmentArea[];
-const objectiveAreas = [
-	'listening',
-	'reading',
-	'grammar_usage',
-	'vocabulary'
-] as const satisfies readonly AssessmentArea[];
-const productiveAreas = ['writing', 'speaking'] as const;
+const objectiveAreas = ['listening', 'reading', 'grammar_usage', 'vocabulary'] as const;
+type ProductiveArea = 'writing' | 'speaking';
 const errorSignals = [
 	'main_idea',
 	'detail',
@@ -61,7 +56,6 @@ const insufficientRubricSchema = z.object({
 	signals: z.tuple([]),
 	feedback: z.string().trim().min(1).max(500)
 });
-const rubricOutputSchema = z.union([scoredRubricSchema, insufficientRubricSchema]);
 const areaBandSchema = z.object({
 	listening: skillBandSchema,
 	reading: skillBandSchema,
@@ -111,8 +105,8 @@ const skillProfileSchema = z.object({
 		})
 	),
 	rubricOutputs: z.object({
-		writing: rubricOutputSchema,
-		speaking: rubricOutputSchema,
+		writing: insufficientRubricSchema,
+		speaking: insufficientRubricSchema,
 		pronunciation: insufficientRubricSchema
 	})
 });
@@ -187,12 +181,12 @@ const initialEvidence = (): Record<AssessmentArea, number> => ({
 });
 
 const initialFeedback = (): Record<AssessmentArea, string> => ({
-	listening: 'Not enough reviewed responses were available.',
-	reading: 'Not enough reviewed responses were available.',
-	grammar_usage: 'Not enough reviewed responses were available.',
-	vocabulary: 'Not enough reviewed responses were available.',
-	writing: 'AI rubric feedback was unavailable, so this area was not scored.',
-	speaking: 'AI transcript rubric feedback was unavailable, so this area was not scored.'
+	listening: 'No reviewed listening responses were available.',
+	reading: 'No reviewed reading responses were available.',
+	grammar_usage: 'No reviewed grammar responses were available.',
+	vocabulary: 'No reviewed vocabulary responses were available.',
+	writing: 'No writing sample was available.',
+	speaking: 'No speaking attempt was available.'
 });
 
 const addSignals = (
@@ -213,6 +207,8 @@ const choiceText = (item: AssessmentItem, choiceId: string) =>
 const selectedKey = ({ id, version }: Pick<AttemptSelectedItem, 'id' | 'version'>) =>
 	`${id}:${version}`;
 
+// This remains available for callers that need to validate an independently reviewed rubric.
+// The first check deliberately does not apply a rubric to one writing or speaking sample.
 export function validateProductiveRubric(
 	item: AssessmentItem,
 	rubric: ProductiveRubric
@@ -229,7 +225,7 @@ export function validateProductiveRubric(
 
 export function buildAssessmentDiagnosis(
 	input: DiagnosisInput,
-	productiveRubrics: Partial<Record<(typeof productiveAreas)[number], ProductiveRubric>>,
+	_productiveRubrics: Partial<Record<ProductiveArea, ProductiveRubric>>,
 	diagnosisMetadata: DiagnosisMetadata
 ) {
 	const skillBands = initialBands();
@@ -238,7 +234,6 @@ export function buildAssessmentDiagnosis(
 	const signalCounts = new Map<ErrorSignal, number>();
 	const signalAreas = new Map<ErrorSignal, AssessmentArea>();
 	const missedAnswerExamples: SkillProfile['missedAnswerExamples'] = [];
-	const selected = new Map(input.selectedItems.map((item) => [selectedKey(item), item]));
 	const responses = new Map(
 		input.responses.map((response) => [
 			selectedKey({ id: response.itemId, version: response.itemVersion }),
@@ -251,97 +246,103 @@ export function buildAssessmentDiagnosis(
 		const response = responses.get(selectedKey(selectedItem));
 		if (!item || item.area !== selectedItem.area || !response || response.area !== item.area)
 			continue;
-		if (!objectiveAreas.includes(item.area as (typeof objectiveAreas)[number])) continue;
-		if (response.kind !== 'objective' || !item.answerKey || !item.primaryScoredSignal) continue;
 
-		evidenceCounts[item.area] += 1;
-		if (item.answerKey.includes(response.answer)) continue;
+		if (objectiveAreas.includes(item.area as (typeof objectiveAreas)[number])) {
+			if (response.kind !== 'objective' || !item.answerKey) continue;
+			evidenceCounts[item.area] += 1;
+			if (item.answerKey.includes(response.answer)) continue;
 
-		addSignals(signalCounts, signalAreas, item.area, [item.primaryScoredSignal]);
-		missedAnswerExamples.push({
-			area: item.area,
-			itemId: item.id,
-			learnerAnswer: choiceText(item, response.answer) ?? 'Unknown response',
-			expectedAnswer:
-				item.answerKey
-					.map((answer) => choiceText(item, answer))
-					.filter(Boolean)
-					.join(', ') || 'Expected choice unavailable',
-			explanation: item.explanation,
-			errorSignals: [item.primaryScoredSignal]
-		});
+			const signals = getAssessmentResponseSignals(item.id, item.version, response.answer);
+			addSignals(signalCounts, signalAreas, item.area, signals);
+			if (signals.length) {
+				missedAnswerExamples.push({
+					area: item.area,
+					itemId: item.id,
+					learnerAnswer: choiceText(item, response.answer) ?? 'Unknown response',
+					expectedAnswer:
+						item.answerKey
+							.map((answer) => choiceText(item, answer))
+							.filter(Boolean)
+							.join(', ') || 'Expected choice unavailable',
+					explanation: item.explanation,
+					errorSignals: signals
+				});
+			}
+			continue;
+		}
+
+		if (item.area === 'writing' && response.kind === 'writing_text') {
+			evidenceCounts.writing = 1;
+			areaFeedback.writing =
+				'One writing sample is saved. It is not enough to identify grammar patterns or assign a writing level.';
+			continue;
+		}
+
+		if (item.area === 'speaking' && response.kind === 'speaking_metadata') {
+			evidenceCounts.speaking = 1;
+			areaFeedback.speaking = response.metadata.transcript
+				? 'One speaking transcript is saved. It is not enough to assign a fluency, pronunciation, or speaking level.'
+				: 'One speaking attempt is logged. Audio is not stored, and this first check does not score fluency or pronunciation.';
+		}
 	}
 
 	for (const area of objectiveAreas) {
 		const misses = missedAnswerExamples.filter((example) => example.area === area).length;
 		const correct = evidenceCounts[area] - misses;
-		if (evidenceCounts[area] === 3) skillBands[area] = bandFromObjectiveScore(correct);
-		areaFeedback[area] = `${correct} of ${evidenceCounts[area]} reviewed responses were correct.`;
-	}
-
-	const rubricOutputs: SkillProfile['rubricOutputs'] = {
-		writing: {
-			score: null,
-			signals: [],
-			feedback: areaFeedback.writing
-		},
-		speaking: {
-			score: null,
-			signals: [],
-			feedback: areaFeedback.speaking
-		},
-		pronunciation: {
-			score: null,
-			signals: [],
-			feedback:
-				'Pronunciation scoring is deferred; speaking feedback uses transcript-level surface analysis.'
+		if (evidenceCounts[area] >= 3) {
+			skillBands[area] = bandFromObjectiveScore(correct);
+			areaFeedback[area] =
+				`${correct} of ${evidenceCounts[area]} reviewed responses were correct. This is a short practice snapshot, not a placement level.`;
+		} else if (evidenceCounts[area] > 0) {
+			areaFeedback[area] =
+				`${correct} of ${evidenceCounts[area]} reviewed responses were correct. More examples are needed before naming a skill level.`;
 		}
-	};
-
-	for (const area of productiveAreas) {
-		const rubric = productiveRubrics[area];
-		const selectedItem = input.selectedItems.find((item) => item.area === area);
-		const item = selectedItem
-			? getAssessmentItemVersion(selectedItem.id, selectedItem.version)
-			: undefined;
-		if (!rubric || !item || !selected.has(selectedKey(selectedItem!))) continue;
-
-		const validated = validateProductiveRubric(item, rubric);
-		evidenceCounts[area] = 1;
-		skillBands[area] = bandFromObjectiveScore(validated.score);
-		areaFeedback[area] = validated.feedback;
-		rubricOutputs[area] = validated;
-		addSignals(signalCounts, signalAreas, area, validated.signals);
 	}
 
 	const priorityWeaknesses = [...signalCounts.entries()]
 		.sort((a, b) => b[1] - a[1] || errorSignals.indexOf(a[0]) - errorSignals.indexOf(b[0]))
 		.slice(0, 3)
 		.map(([signal]) => ({
-			area: signalAreas.get(signal) ?? 'writing',
+			area: signalAreas.get(signal) ?? 'grammar_usage',
 			signal,
-			reason: `Assessment evidence showed a need to practice ${signalLabel[signal]}.`
+			reason: `A selected response suggests starting with ${signalLabel[signal]}. More examples will confirm whether it is a stable need.`
 		}));
 	const targets = priorityWeaknesses.map(({ area, signal }, index) => ({
 		area,
 		signal,
 		priority: index + 1
 	}));
-	const diagnosisQuality =
-		objectiveAreas.every((area) => evidenceCounts[area] === 3) &&
-		productiveAreas.every((area) => evidenceCounts[area] === 1)
-			? 'full'
-			: 'limited';
 
 	return {
 		skillProfile: skillProfileSchema.parse({
 			skillBands,
 			evidenceCounts,
 			areaFeedback,
-			diagnosisQuality,
+			// Productive responses are saved but not scored from a single sample, so this
+			// remains limited even when all objective tasks are complete.
+			diagnosisQuality: 'limited',
 			priorityWeaknesses,
 			missedAnswerExamples,
-			rubricOutputs
+			rubricOutputs: {
+				writing: {
+					score: null,
+					signals: [],
+					feedback:
+						'Your writing sample is saved. One short response is not enough to identify grammar patterns reliably.'
+				},
+				speaking: {
+					score: null,
+					signals: [],
+					feedback:
+						'Speaking is not scored in this first check. More transcript evidence is needed before making a language judgement.'
+				},
+				pronunciation: {
+					score: null,
+					signals: [],
+					feedback:
+						'Pronunciation is not scored in this first check. It needs dedicated speech evaluation.'
+				}
+			}
 		}),
 		studyPlan: studyPlanSchema.parse({
 			targets,
@@ -352,100 +353,19 @@ export function buildAssessmentDiagnosis(
 	};
 }
 
-const productiveResponse = (input: DiagnosisInput, area: (typeof productiveAreas)[number]) => {
-	const selectedItem = input.selectedItems.find((item) => item.area === area);
-	if (!selectedItem) return;
-	const response = input.responses.find(
-		(candidate) =>
-			candidate.itemId === selectedItem.id && candidate.itemVersion === selectedItem.version
-	);
-	const item = getAssessmentItemVersion(selectedItem.id, selectedItem.version);
-	if (!item || !response) return;
-	if (area === 'writing' && response.kind === 'writing_text') {
-		return { item, response: response.answer };
-	}
-	if (
-		area === 'speaking' &&
-		response.kind === 'speaking_metadata' &&
-		response.metadata.transcript
-	) {
-		return { item, response: response.metadata.transcript };
-	}
-};
-
-const rubricProductiveResponse = async (
-	runtime: WorkersAiRuntime,
-	area: (typeof productiveAreas)[number],
-	item: AssessmentItem,
-	response: string
-) => {
-	const allowedSignals = item.errorSignalTags.filter((signal) => signal !== 'fluency');
-	const rubric = await runWorkersAiJson(
-		runtime,
-		[
-			{
-				role: 'system',
-				content:
-					'Return only the requested JSON rubric. Evaluate only the supplied writing text or speaking transcript. Do not grade objective items, infer pronunciation, infer pauses, or invent errors.'
-			},
-			{
-				role: 'user',
-				content: JSON.stringify({
-					area,
-					prompt: item.prompt,
-					rubric: item.rubric?.filter(
-						(criterion) => area !== 'speaking' || !criterion.startsWith('fluency:')
-					),
-					response,
-					allowedErrorSignals: allowedSignals,
-					requiredShape: {
-						score: 'integer 0 through 3',
-						signals: 'only observed weaknesses from allowedErrorSignals',
-						feedback: 'plain-language evidence-based feedback, at most 500 characters'
-					}
-				})
-			}
-		],
-		scoredRubricSchema
-	);
-	return validateProductiveRubric(item, rubric);
-};
-
 export async function diagnoseAssessmentAttempt(input: DiagnosisInput) {
-	const runtime = getWorkersAiRuntime();
-	const productiveRubrics: Partial<Record<(typeof productiveAreas)[number], ProductiveRubric>> = {};
-	const fallbackReasons: string[] = [];
-
-	if (!runtime) {
-		fallbackReasons.push('workers_ai_unavailable');
-	} else {
-		for (const area of productiveAreas) {
-			const evidence = productiveResponse(input, area);
-			if (!evidence) {
-				fallbackReasons.push(`${area}_evidence_unavailable`);
-				continue;
-			}
-			try {
-				productiveRubrics[area] = await rubricProductiveResponse(
-					runtime,
-					area,
-					evidence.item,
-					evidence.response
-				);
-			} catch {
-				fallbackReasons.push(`${area}_rubric_unavailable`);
-			}
+	return buildAssessmentDiagnosis(
+		input,
+		{},
+		{
+			provider: 'local',
+			modelId: 'evidence-calibrated-diagnosis',
+			promptVersion: 'assessment-diagnosis-v2',
+			schemaVersion: 2,
+			generatedAt: new Date().toISOString(),
+			fallbackReason: 'productive_scoring_deferred'
 		}
-	}
-
-	return buildAssessmentDiagnosis(input, productiveRubrics, {
-		provider: runtime?.provider ?? 'local',
-		modelId: runtime?.textModelId ?? 'deterministic-objective-scoring',
-		promptVersion: 'assessment-diagnosis-v2',
-		schemaVersion: 2,
-		generatedAt: new Date().toISOString(),
-		...(fallbackReasons.length > 0 ? { fallbackReason: fallbackReasons.join(',') } : {})
-	});
+	);
 }
 
 export const validateSkillProfile = (value: unknown) => skillProfileSchema.parse(value);

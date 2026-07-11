@@ -71,6 +71,10 @@
 					>{/if}
 			</div>
 			{#if data.dashboard.latestAssessment?.skillProfile}
+				<p class="mt-4 text-sm text-zinc-600">
+					Evidence counts show the responses behind each area; this profile is not a standalone
+					proficiency certification.
+				</p>
 				<div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 					{#each data.bandChanges as change (change.area)}
 						<div class="rounded-lg bg-zinc-50 p-3">

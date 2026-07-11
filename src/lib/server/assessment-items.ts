@@ -45,6 +45,7 @@ export type AssessmentItem = {
 	readonly answerKey?: readonly string[];
 	readonly rubric?: readonly string[];
 	readonly choices?: readonly Choice[];
+	readonly responseSignals?: Readonly<Partial<Record<string, readonly ErrorSignal[]>>>;
 	readonly serverOnlyAudioScript?: string;
 	readonly serverOnlyAudioMetadata?: {
 		provider: 'workers-ai';
@@ -79,6 +80,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'At 8:50.' },
 			{ id: 'c', text: 'At 9:30.' }
 		],
+		responseSignals: {
+			a: ['detail'],
+			c: ['detail']
+		},
 		serverOnlyAudioScript: 'Mei says, "I will meet my coworker at eight fifty near the station."',
 		serverOnlyAudioMetadata: {
 			provider: 'workers-ai',
@@ -117,6 +122,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'Ana is applying for a new job.' },
 			{ id: 'c', text: 'Ana is cooking dinner at work.' }
 		],
+		responseSignals: {
+			b: ['main_idea'],
+			c: ['main_idea']
+		},
 		serverOnlyAudioScript:
 			'Ana says, "The pharmacy closes at seven, so I need to pick up my medicine after work."',
 		serverOnlyAudioMetadata: {
@@ -156,6 +165,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'Platform 4.' },
 			{ id: 'c', text: 'Platform 6.' }
 		],
+		responseSignals: {
+			a: ['detail'],
+			b: ['detail']
+		},
 		serverOnlyAudioScript:
 			'The number twenty-four bus to Green Street will leave from platform six.',
 		serverOnlyAudioMetadata: {
@@ -195,6 +208,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'It was too small.' },
 			{ id: 'c', text: 'It arrived late.' }
 		],
+		responseSignals: {
+			a: ['detail'],
+			c: ['detail']
+		},
 		learnerTask: {
 			instructions: 'Why did Lina return the jacket?',
 			choices: [
@@ -228,6 +245,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'The library was closed when Omar arrived.' },
 			{ id: 'c', text: 'Omar works at the library on Monday.' }
 		],
+		responseSignals: {
+			a: ['main_idea'],
+			c: ['main_idea']
+		},
 		learnerTask: {
 			instructions: 'What is the passage mainly about?',
 			choices: [
@@ -261,6 +282,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'already finished' },
 			{ id: 'c', text: 'more expensive' }
 		],
+		responseSignals: {
+			b: ['vocabulary_in_context'],
+			c: ['vocabulary_in_context']
+		},
 		learnerTask: {
 			instructions: 'What does "available" mean in this passage?',
 			choices: [
@@ -293,6 +318,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'goes' },
 			{ id: 'c', text: 'going' }
 		],
+		responseSignals: {
+			a: ['subject_verb_agreement'],
+			c: ['verb_form']
+		},
 		learnerTask: {
 			instructions: 'Choose the best word to complete the sentence.',
 			choices: [
@@ -325,6 +354,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'an' },
 			{ id: 'c', text: 'some' }
 		],
+		responseSignals: {
+			a: ['article_determiner'],
+			c: ['article_determiner']
+		},
 		learnerTask: {
 			instructions: 'Choose the best word to complete the sentence.',
 			choices: [
@@ -357,6 +390,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'in' },
 			{ id: 'c', text: 'on' }
 		],
+		responseSignals: {
+			a: ['preposition'],
+			b: ['preposition']
+		},
 		learnerTask: {
 			instructions: 'Choose the best word to complete the sentence.',
 			choices: [
@@ -389,6 +426,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'very clean' },
 			{ id: 'c', text: 'later than planned' }
 		],
+		responseSignals: {
+			a: ['vocabulary_in_context'],
+			b: ['vocabulary_in_context']
+		},
 		learnerTask: {
 			instructions: 'What does "delayed" mean in this sentence?',
 			choices: [
@@ -421,6 +462,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'do' },
 			{ id: 'c', text: 'build' }
 		],
+		responseSignals: {
+			b: ['collocation'],
+			c: ['collocation']
+		},
 		learnerTask: {
 			instructions: 'Choose the natural word to complete the sentence.',
 			choices: [
@@ -453,6 +498,10 @@ export const seedAssessmentItems = [
 			{ id: 'b', text: 'full of people' },
 			{ id: 'c', text: 'easy to find' }
 		],
+		responseSignals: {
+			a: ['vocabulary_in_context'],
+			c: ['vocabulary_in_context']
+		},
 		learnerTask: {
 			instructions: 'What does "crowded" mean in this sentence?',
 			choices: [
@@ -597,6 +646,27 @@ export function getAssessmentItemAudioSource(itemId: string, itemVersion?: numbe
 	};
 }
 
+export function getAssessmentResponseSignals(itemId: string, answer: string): ErrorSignal[];
+export function getAssessmentResponseSignals(
+	itemId: string,
+	itemVersion: number,
+	answer: string
+): ErrorSignal[];
+export function getAssessmentResponseSignals(
+	itemId: string,
+	itemVersionOrAnswer: number | string,
+	maybeAnswer?: string
+): ErrorSignal[] {
+	const item =
+		typeof itemVersionOrAnswer === 'number'
+			? getAssessmentItemVersion(itemId, itemVersionOrAnswer)
+			: currentAssessmentItems(getSeedAssessmentItems()).find(
+					(candidate) => candidate.id === itemId
+				);
+	const answer = typeof itemVersionOrAnswer === 'string' ? itemVersionOrAnswer : maybeAnswer;
+	return answer ? [...(item?.responseSignals?.[answer] ?? [])] : [];
+}
+
 export function validateSeedAssessmentItems(items: readonly AssessmentItem[]) {
 	const requiredAreas = new Set<AssessmentArea>([
 		'listening',
@@ -645,6 +715,35 @@ export function validateSeedAssessmentItems(items: readonly AssessmentItem[]) {
 
 		if (!item.answerKey?.length && !item.rubric?.length) {
 			throw new Error(`Assessment Item ${item.id} needs an answer key or rubric`);
+		}
+
+		if (item.choices?.length) {
+			const choiceIds = new Set(item.choices.map((choice) => choice.id));
+			const answerKeys = new Set(item.answerKey ?? []);
+			if (!item.responseSignals) {
+				throw new Error(`Assessment Item ${item.id} needs response-to-signal mappings`);
+			}
+
+			for (const [answerId, signals] of Object.entries(item.responseSignals) as [
+				string,
+				readonly ErrorSignal[]
+			][]) {
+				if (!choiceIds.has(answerId)) {
+					throw new Error(`Assessment Item ${item.id} maps a response that is not a choice`);
+				}
+				if (answerKeys.has(answerId)) {
+					throw new Error(`Assessment Item ${item.id} must not diagnose a correct response`);
+				}
+				if (signals.length === 0) {
+					throw new Error(`Assessment Item ${item.id} maps a response without an Error Signal`);
+				}
+			}
+
+			for (const choiceId of choiceIds) {
+				if (!answerKeys.has(choiceId) && !item.responseSignals[choiceId]?.length) {
+					throw new Error(`Assessment Item ${item.id} is missing a response-to-signal mapping`);
+				}
+			}
 		}
 
 		if (

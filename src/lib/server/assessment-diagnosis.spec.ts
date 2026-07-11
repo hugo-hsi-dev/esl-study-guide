@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	bandFromObjectiveScore,
 	buildAssessmentDiagnosis,
+	diagnoseAssessmentAttempt,
 	validateProductiveRubric,
 	type DiagnosisInput
 } from './assessment-diagnosis';
@@ -10,11 +11,11 @@ import type { AttemptResponse } from './db/schema';
 
 const metadata = {
 	provider: 'local' as const,
-	modelId: 'deterministic-objective-scoring',
+	modelId: 'evidence-calibrated-diagnosis',
 	promptVersion: 'assessment-diagnosis-v2' as const,
 	schemaVersion: 2 as const,
 	generatedAt: '2026-07-10T00:00:00.000Z',
-	fallbackReason: 'workers_ai_unavailable'
+	fallbackReason: 'productive_scoring_deferred'
 };
 
 const inputWithListeningCorrect = (correctCount: number): DiagnosisInput => {
@@ -68,38 +69,59 @@ describe('assessment diagnosis', () => {
 		[1, 'developing'],
 		[2, 'functional'],
 		[3, 'strong']
-	] as const)('maps %i of 3 objective answers to %s', (correctCount, expectedBand) => {
+	] as const)('maps %i of 3 reviewed objective answers to %s', (correctCount, expectedBand) => {
 		const result = buildAssessmentDiagnosis(inputWithListeningCorrect(correctCount), {}, metadata);
 		expect(result.skillProfile.skillBands.listening).toBe(expectedBand);
 		expect(bandFromObjectiveScore(correctCount)).toBe(expectedBand);
 	});
 
-	it('uses choice text and only the primary scored signal for missed examples', () => {
-		const input = inputWithListeningCorrect(0);
-		const firstItem = getSeedAssessmentItems().find((item) => item.area === 'listening')!;
-		const firstResponse = input.responses.find(
-			(response) => response.itemId === firstItem.id
-		) as Extract<AttemptResponse, { kind: 'objective' }>;
-		const result = buildAssessmentDiagnosis(input, {}, metadata);
-		const example = result.skillProfile.missedAnswerExamples.find(
-			(candidate) => candidate.itemId === firstItem.id
+	it('keeps a one-task result as insufficient evidence and uses the selected distractor signal', () => {
+		const grammar = getSeedAssessmentItems().find(
+			(item) => item.id === 'grammar-simple-present-goes'
 		)!;
+		const result = buildAssessmentDiagnosis(
+			{
+				selectedItems: [{ id: grammar.id, version: grammar.version, area: grammar.area }],
+				responses: [
+					{
+						area: 'grammar_usage',
+						itemId: grammar.id,
+						itemVersion: grammar.version,
+						kind: 'objective',
+						answer: 'c'
+					}
+				]
+			},
+			{},
+			metadata
+		);
 
-		expect(example.learnerAnswer).toBe(
-			firstItem.choices!.find((choice) => choice.id === firstResponse.answer)!.text
-		);
-		expect(example.expectedAnswer).toBe(
-			firstItem.choices!.find((choice) => choice.id === firstItem.answerKey![0])!.text
-		);
-		expect(example.errorSignals).toEqual([firstItem.primaryScoredSignal]);
+		expect(result.skillProfile.skillBands.grammar_usage).toBe('insufficient_evidence');
+		expect(result.skillProfile.evidenceCounts.grammar_usage).toBe(1);
+		expect(result.skillProfile.priorityWeaknesses).toEqual([
+			expect.objectContaining({ area: 'grammar_usage', signal: 'verb_form' })
+		]);
+		expect(result.skillProfile.missedAnswerExamples[0]).toMatchObject({
+			learnerAnswer: 'going',
+			expectedAnswer: 'goes',
+			errorSignals: ['verb_form']
+		});
 	});
 
-	it('marks productive areas as insufficient instead of using response-length heuristics', () => {
-		const result = buildAssessmentDiagnosis(inputWithListeningCorrect(3), {}, metadata);
+	it('keeps productive samples unscored and records an evidence-calibrated diagnosis', async () => {
+		const result = await diagnoseAssessmentAttempt(inputWithListeningCorrect(3));
+
 		expect(result.skillProfile.diagnosisQuality).toBe('limited');
 		expect(result.skillProfile.skillBands.writing).toBe('insufficient_evidence');
 		expect(result.skillProfile.skillBands.speaking).toBe('insufficient_evidence');
-		expect(result.diagnosisMetadata.fallbackReason).toBe('workers_ai_unavailable');
+		expect(result.skillProfile.rubricOutputs.writing.score).toBeNull();
+		expect(result.skillProfile.rubricOutputs.speaking.score).toBeNull();
+		expect(result.skillProfile.rubricOutputs.pronunciation.score).toBeNull();
+		expect(result.diagnosisMetadata).toMatchObject({
+			modelId: 'evidence-calibrated-diagnosis',
+			schemaVersion: 2,
+			fallbackReason: 'productive_scoring_deferred'
+		});
 	});
 
 	it('rejects AI Error Signals that the reviewed productive item cannot evidence', () => {

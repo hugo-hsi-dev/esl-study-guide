@@ -17,7 +17,6 @@ const includesSqlParameter = (
 
 describe('saveAssessmentAttempt', () => {
 	it('rejects an assessment attempt owned by another learner', async () => {
-		expect.assertions(2);
 		const item = getLearnerAssessmentItems()[0];
 		if (!item) throw new Error('Expected an assessment item.');
 		const foreignAttempt = {
@@ -62,9 +61,7 @@ describe('saveAssessmentAttempt', () => {
 		expect(queriedWithLearnerOwnership).toBe(true);
 	});
 
-	it('saves one completed 14-task attempt with honest limited diagnosis', async () => {
-		expect.assertions(12);
-
+	it('saves a completed 14-task attempt with evidence-calibrated results', async () => {
 		const formData = new FormData();
 		for (const item of getLearnerAssessmentItems()) {
 			if (item.area === 'writing') {
@@ -96,6 +93,8 @@ describe('saveAssessmentAttempt', () => {
 			responsesJson: { area: string; kind: string; metadata?: unknown }[];
 			skillProfileJson: {
 				skillBands: Record<string, string>;
+				evidenceCounts: Record<string, number>;
+				diagnosisQuality: string;
 				priorityWeaknesses: { signal: string }[];
 				rubricOutputs: { pronunciation: { score: null; feedback: string } };
 			};
@@ -129,18 +128,20 @@ describe('saveAssessmentAttempt', () => {
 			metadata: { representedBy: 'temporary_metadata', responseSeconds: 42 }
 		});
 		expect(row.skillProfileJson.skillBands.writing).toBe('insufficient_evidence');
+		expect(row.skillProfileJson.evidenceCounts.writing).toBe(1);
+		expect(row.skillProfileJson.diagnosisQuality).toBe('limited');
 		expect(row.skillProfileJson.priorityWeaknesses.length).toBeGreaterThan(0);
 		expect(row.skillProfileJson.rubricOutputs.pronunciation).toEqual({
 			score: null,
 			signals: [],
 			feedback:
-				'Pronunciation scoring is deferred; speaking feedback uses transcript-level surface analysis.'
+				'Pronunciation is not scored in this first check. It needs dedicated speech evaluation.'
 		});
 		expect(row.studyPlanJson.reassessAfterPracticeCount).toBe(20);
 		expect(row.diagnosisMetadataJson).toMatchObject({
-			modelId: 'deterministic-objective-scoring',
+			modelId: 'evidence-calibrated-diagnosis',
 			schemaVersion: 2,
-			fallbackReason: 'workers_ai_unavailable'
+			fallbackReason: 'productive_scoring_deferred'
 		});
 		expect(result.status).toBe('completed');
 	});

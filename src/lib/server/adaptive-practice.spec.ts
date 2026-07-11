@@ -74,8 +74,8 @@ const profile: SkillProfile = {
 	],
 	missedAnswerExamples: [],
 	rubricOutputs: {
-		writing: { score: 2, signals: [], feedback: 'Writing evidence was scored.' },
-		speaking: { score: 2, signals: [], feedback: 'Speaking evidence was scored.' },
+		writing: { score: null, signals: [], feedback: 'Writing evidence was not scored.' },
+		speaking: { score: null, signals: [], feedback: 'Speaking evidence was not scored.' },
 		pronunciation: {
 			score: null,
 			signals: [],

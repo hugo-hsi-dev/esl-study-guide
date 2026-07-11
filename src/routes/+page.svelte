@@ -5,8 +5,8 @@
 		<p class="text-sm font-medium text-teal-700">ESL Study Guide</p>
 		<h1 class="text-4xl font-semibold text-zinc-950">Know what to practice next</h1>
 		<p class="max-w-xl text-lg text-zinc-700">
-			Build a clear Skill Profile, complete focused daily practice, and see your English improve
-			over time.
+			Build a clear Skill Profile from 14 short English tasks in about 15–20 minutes. It gives you a
+			starting practice profile, not a grade or a full language-level result.
 		</p>
 	</header>
 

@@ -13,11 +13,11 @@ The owner account that can view the learner's assessment and study data in a rea
 _Avoid_: Teacher, tutor, content editor
 
 **Skill Diagnosis**:
-An assessment result that identifies the learner's current strengths and weaknesses so the tool can choose what to practice next.
+An assessment result that summarizes the learner's task evidence and suggests what to practice next. A first check does not assign a language level from one task per area.
 _Avoid_: Placement, grading, exam score
 
 **ESL Assessment**:
-A broad diagnostic flow covering listening, reading, writing, speaking, grammar/usage, and vocabulary so the tool can build a study path. It is a gateway into study and a periodic check-in, not the whole product.
+A broad first-check flow covering listening, reading, writing, speaking, grammar/usage, and vocabulary so the tool can build a study path. It is a gateway into study and a periodic check-in, not the whole product.
 _Avoid_: Practice test app, exam prep test
 
 **Speaking Feedback**:
@@ -25,11 +25,11 @@ MVP speaking feedback uses Workers AI transcription plus transcript-level surfac
 _Avoid_: Pronunciation score, dedicated speech-scoring provider
 
 **Skill Profile**:
-A lightweight post-assessment summary of the learner's skill bands, priority weaknesses, missed-answer examples, and plain-language explanations.
+A lightweight post-assessment summary of task evidence, priority practice targets, missed-answer examples, and plain-language explanations. It only names a Skill Band when enough relevant evidence exists.
 _Avoid_: Grade level, CEFR score, report card
 
 **Skill Band**:
-An internal level label for one assessed area, such as emerging, developing, functional, or strong.
+An internal level label for one assessed area, such as emerging, developing, functional, or strong. Do not show it after a single short task.
 _Avoid_: CEFR equivalence, IELTS score, TOEFL score
 
 **Error Signal**:

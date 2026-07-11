@@ -7,8 +7,6 @@ import { getAuth } from '$lib/server/auth';
 import { getDb } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
 import { getAccountRole, redirectForRole } from '$lib/server/roles';
-// @ts-expect-error SvelteKit next exports this runtime class without module types.
-import { Redirect } from '@sveltejs/kit/internal';
 
 const usernameAuthSchema = z.object({
 	username: z.string().min(1),
@@ -19,10 +17,12 @@ export const getLoginPage = query(() => {
 	const event = getRequestEvent();
 
 	if (event.locals.user) {
-		throw new Redirect(302, redirectForRole(getAccountRole(event.locals.user) ?? 'learner'));
+		return {
+			redirectTo: redirectForRole(getAccountRole(event.locals.user) ?? 'learner')
+		};
 	}
 
-	return {};
+	return { redirectTo: undefined };
 });
 
 export const signInUsername = form(usernameAuthSchema, async (data) => {
@@ -44,5 +44,5 @@ export const signInUsername = form(usernameAuthSchema, async (data) => {
 		.limit(1);
 	const role = getAccountRole(account ?? {});
 	if (!role) invalid('This account is not allowed to use the study tool.');
-	throw new Redirect(302, redirectForRole(role));
+	return { redirectTo: redirectForRole(role) };
 });
