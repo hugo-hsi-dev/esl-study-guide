@@ -2,128 +2,118 @@ import { form, query } from '$app/server';
 import { invalid } from '@sveltejs/kit';
 import { z } from 'zod';
 import {
-	generatePracticeProblem,
-	getLatestPracticeProblem,
-	savePracticeAttempt,
-	validatePracticeMetadata,
-	validatePracticeProblem
-} from '$lib/server/adaptive-practice';
-import {
 	AssessmentAttemptInputError,
-	saveAssessmentAttempt
+	assessmentIntakeSchema,
+	authorizeAssessmentResponse,
+	buildAssessmentResponseDraft,
+	completeAssessment as completeAssessmentAttempt,
+	getAssessmentState as readAssessmentState,
+	saveAssessmentResponse as persistAssessmentResponse,
+	startAssessment as createAssessment
 } from '$lib/server/assessment-attempts';
-import { getLearnerAssessmentItems } from '$lib/server/assessment-items';
 import { getDb } from '$lib/server/db';
 import { requireRole } from '$lib/server/roles';
 import { AiOutputValidationError } from '$lib/server/workers-ai';
 
-const assessmentFormSchema = z.object({
-	responses: z
-		.array(
-			z.object({
-				itemId: z.string(),
-				answer: z.string().optional(),
-				speakingSeconds: z.number().optional(),
-				speakingTranscript: z.string().optional(),
-				speakingAudio: z.file().optional()
-			})
-		)
-		.optional()
+const startSchema = z.object({
+	goal: z.string().trim().min(1, 'Tell us what you want to do in English.').max(500),
+	speakingRating: z.enum(['1', '2', '3', '4', '5']),
+	readingRating: z.enum(['1', '2', '3', '4', '5']),
+	writingRating: z.enum(['1', '2', '3', '4', '5']),
+	timeZone: z.string().trim().min(1).max(100)
 });
 
-const practiceFormSchema = z.object({
-	answer: z.string().optional(),
-	problemJson: z.string().optional(),
-	metadataJson: z.string().optional()
+const responseSchema = z.object({
+	attemptId: z.string().uuid(),
+	itemId: z.string().trim().min(1).max(100),
+	answer: z.string().max(5000).optional(),
+	speakingSeconds: z
+		.string()
+		.regex(/^\d{1,3}$/)
+		.optional(),
+	speakingTranscript: z.string().trim().max(5000).optional(),
+	speakingAudio: z.file().optional()
 });
 
-type AssessmentFormInput = z.infer<typeof assessmentFormSchema>;
+const completionSchema = z.object({ attemptId: z.string().uuid() });
 
-const toAssessmentFormData = (data: AssessmentFormInput) => {
-	const formData = new FormData();
-
-	for (const response of data.responses ?? []) {
-		if (!response.itemId) continue;
-		if (response.answer !== undefined) formData.set(`answer:${response.itemId}`, response.answer);
-		if (response.speakingSeconds !== undefined) {
-			formData.set(`speakingSeconds:${response.itemId}`, String(response.speakingSeconds));
-		}
-		if (response.speakingTranscript !== undefined) {
-			formData.set(`speakingTranscript:${response.itemId}`, response.speakingTranscript);
-		}
-		if (response.speakingAudio !== undefined) {
-			formData.set(`speakingAudio:${response.itemId}`, response.speakingAudio);
-		}
+const handleInputError = (error: unknown): never => {
+	if (error instanceof z.ZodError) {
+		invalid(error.issues[0]?.message ?? 'Check this response and try again.');
 	}
-
-	return formData;
+	if (error instanceof AssessmentAttemptInputError) invalid(error.message);
+	if (error instanceof AiOutputValidationError) invalid(error.message);
+	throw error;
 };
 
-export const getAssessmentPage = query(async () => {
+export const getAssessmentState = query(async () => {
 	const user = requireRole('learner');
 	return {
 		learnerName: user.name,
-		items: getLearnerAssessmentItems(),
-		practice: await getLatestPracticeProblem(getDb(), user.id)
+		state: await readAssessmentState(getDb(), user.id)
 	};
 });
 
-export const submitAssessment = form(assessmentFormSchema, async (data) => {
+export const startAssessment = form(startSchema, async (data) => {
 	const user = requireRole('learner');
-
 	try {
-		const attempt = await saveAssessmentAttempt(getDb(), user.id, toAssessmentFormData(data));
-		return {
-			saved: true,
-			attemptId: attempt.id,
-			status: attempt.status,
-			skillProfile: attempt.skillProfile,
-			studyPlan: attempt.studyPlan,
-			practice: {
-				assessmentAttemptId: attempt.id,
-				...(await generatePracticeProblem({
-					skillProfile: attempt.skillProfile,
-					studyPlan: attempt.studyPlan,
-					recentResponses: attempt.responses
-				}))
-			}
-		};
+		const intake = assessmentIntakeSchema.parse({
+			goal: data.goal,
+			selfRatings: {
+				speaking: Number(data.speakingRating),
+				reading: Number(data.readingRating),
+				writing: Number(data.writingRating)
+			},
+			timeZone: data.timeZone
+		});
+		return { state: await createAssessment(getDb(), user.id, intake) };
 	} catch (error) {
-		if (error instanceof AssessmentAttemptInputError) invalid(error.message);
-		if (error instanceof AiOutputValidationError) {
-			invalid(
-				'We could not read the recorded response. Record it again or add a short transcript.'
-			);
-		}
-		throw error;
+		return handleInputError(error);
 	}
 });
 
-export const submitPractice = form(practiceFormSchema, async (data) => {
+export const saveAssessmentResponse = form(responseSchema, async (data) => {
 	const user = requireRole('learner');
-	const answer = data.answer ?? '';
-	if (!answer) invalid('Choose an answer.');
-
 	try {
-		const submitted =
-			data.problemJson && data.metadataJson
-				? {
-						problem: validatePracticeProblem(JSON.parse(data.problemJson)),
-						metadata: validatePracticeMetadata(JSON.parse(data.metadataJson))
-					}
-				: undefined;
-		const result = await savePracticeAttempt(getDb(), user.id, answer, submitted);
-		if (!result) invalid('Complete an assessment before practice.');
+		const authorization = await authorizeAssessmentResponse(getDb(), user.id, {
+			attemptId: data.attemptId,
+			itemId: data.itemId
+		});
+		if (authorization.completedState) return { state: authorization.completedState };
 
-		return result;
-	} catch (error) {
-		if (
-			error instanceof SyntaxError ||
-			error instanceof z.ZodError ||
-			error instanceof AiOutputValidationError
-		) {
-			invalid('Practice problem could not be validated. Refresh and try again.');
+		const formData = new FormData();
+		if (data.answer !== undefined) formData.set(`answer:${data.itemId}`, data.answer);
+		if (data.speakingSeconds !== undefined) {
+			formData.set(`speakingSeconds:${data.itemId}`, data.speakingSeconds);
 		}
-		throw error;
+		if (data.speakingTranscript) {
+			formData.set(`speakingTranscript:${data.itemId}`, data.speakingTranscript);
+		}
+		if (data.speakingAudio) {
+			formData.set(`speakingAudio:${data.itemId}`, data.speakingAudio);
+		}
+		const response = await buildAssessmentResponseDraft(data.itemId, formData);
+		return {
+			state: await persistAssessmentResponse(getDb(), user.id, {
+				attemptId: data.attemptId,
+				itemId: data.itemId,
+				response
+			})
+		};
+	} catch (error) {
+		return handleInputError(error);
+	}
+});
+
+export const completeAssessment = form(completionSchema, async (data) => {
+	const user = requireRole('learner');
+	try {
+		return {
+			state: await completeAssessmentAttempt(getDb(), user.id, {
+				attemptId: data.attemptId
+			})
+		};
+	} catch (error) {
+		return handleInputError(error);
 	}
 });

@@ -35,6 +35,6 @@ describe('account roles', () => {
 
 	it('routes each role to its shell', () => {
 		expect(redirectForRole('admin')).toBe('/admin');
-		expect(redirectForRole('learner')).toBe('/assessment');
+		expect(redirectForRole('learner')).toBe('/study');
 	});
 });

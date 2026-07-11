@@ -45,8 +45,20 @@ A separate AI review pass for assessment content where the reviewing session did
 _Avoid_: Human review, self-review
 
 **Study Plan**:
-A short set of priority skill weaknesses and next practice targets generated from the skill profile.
+A short, structured set of priority skill weaknesses and next practice targets generated from the Skill Profile. The Learner is invited to reassess after 20 scored practice responses.
 _Avoid_: Full curriculum, course syllabus
+
+**Diagnosis Quality**:
+Whether the Skill Profile has full evidence or limited evidence because a writing/speaking rubric could not be produced. An area with no defensible evidence is shown as `insufficient evidence`, never guessed from response length or background.
+_Avoid_: Silent fallback, estimated score
+
+**Study Session**:
+A resumable set of five Adaptive Practice problems: four quick responses and one productive writing or speaking response. The weekly goal is five completed Study Sessions.
+_Avoid_: Lesson, streak, course unit
+
+**Progress Summary**:
+A derived view of recent scored Practice Problems, completed Study Sessions, Skill Profile history, and reassessment readiness. It is calculated from attempts rather than stored as a separate mastery score.
+_Avoid_: Grade, permanent mastery level
 
 **Practice Problem**:
 A targeted exercise selected to improve one diagnosed skill weakness.

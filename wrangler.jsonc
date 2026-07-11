@@ -21,11 +21,71 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "esl-study-guide",
+			"database_name": "esl-study-guide-db",
 			"database_id": "6cc1f525-5e7b-45c6-a7bf-edfe6aa13af5",
 			"migrations_dir": "drizzle"
 		}
 	],
 	"workers_dev": true,
-	"preview_urls": true
+	"preview_urls": true,
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1
+	},
+	"env": {
+		"e2e": {
+			"name": "esl-study-guide-e2e",
+			"workers_dev": false,
+			"preview_urls": false,
+			"assets": {
+				"binding": "ASSETS",
+				"directory": ".svelte-kit/cloudflare"
+			},
+			"vars": {
+				"ORIGIN": "http://127.0.0.1:4173",
+				"WORKERS_AI_TEXT_MODEL_ID": "@cf/meta/llama-3.1-8b-instruct-fp8",
+				"WORKERS_AI_TRANSCRIPTION_MODEL_ID": "@cf/openai/whisper-large-v3-turbo",
+				"WORKERS_AI_TTS_MODEL_ID": "@cf/deepgram/aura-2-en"
+			},
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "esl-study-guide-e2e",
+					"database_id": "00000000-0000-0000-0000-000000000001",
+					"migrations_dir": "drizzle"
+				}
+			]
+		},
+		"staging": {
+			"name": "esl-study-guide-staging",
+			"workers_dev": true,
+			"preview_urls": true,
+			"assets": {
+				"binding": "ASSETS",
+				"directory": ".svelte-kit/cloudflare"
+			},
+			"ai": {
+				"binding": "AI",
+				"remote": true
+			},
+			"vars": {
+				"ORIGIN": "https://esl-study-guide-staging.hugo-hsi.workers.dev",
+				"WORKERS_AI_TEXT_MODEL_ID": "@cf/meta/llama-3.1-8b-instruct-fp8",
+				"WORKERS_AI_TRANSCRIPTION_MODEL_ID": "@cf/openai/whisper-large-v3-turbo",
+				"WORKERS_AI_TTS_MODEL_ID": "@cf/deepgram/aura-2-en"
+			},
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "esl-study-guide-staging",
+					"database_id": "adce950f-3ca1-4c59-bffd-2db7202dc3eb",
+					"migrations_dir": "drizzle"
+				}
+			],
+			"observability": {
+				"enabled": true,
+				"head_sampling_rate": 1
+			}
+		}
+	}
 }

@@ -15,28 +15,28 @@ export const variables = defineEnvVars({
 		schema: requiredUnlessBuilding
 	},
 	ADMIN_USERNAME: {
-		description: 'Username for the fixed seeded Admin test account.',
-		schema: requiredUnlessBuilding
+		description: 'Seed-only username for the fixed Admin account.',
+		schema: z.string().optional()
 	},
 	ADMIN_PASSWORD: {
-		description: 'Password for the fixed seeded Admin test account.',
-		schema: requiredUnlessBuilding
+		description: 'Seed-only password for the fixed Admin account.',
+		schema: z.string().optional()
 	},
 	ADMIN_NAME: {
-		description: 'Display name for the fixed seeded Admin test account.',
-		schema: requiredUnlessBuilding
+		description: 'Seed-only display name for the fixed Admin account.',
+		schema: z.string().optional()
 	},
 	LEARNER_USERNAME: {
-		description: 'Username for the fixed seeded Learner test account.',
-		schema: requiredUnlessBuilding
+		description: 'Seed-only username for the fixed Learner account.',
+		schema: z.string().optional()
 	},
 	LEARNER_PASSWORD: {
-		description: 'Password for the fixed seeded Learner test account.',
-		schema: requiredUnlessBuilding
+		description: 'Seed-only password for the fixed Learner account.',
+		schema: z.string().optional()
 	},
 	LEARNER_NAME: {
-		description: 'Display name for the fixed seeded Learner test account.',
-		schema: requiredUnlessBuilding
+		description: 'Seed-only display name for the fixed Learner account.',
+		schema: z.string().optional()
 	},
 	CLOUDFLARE_ACCOUNT_ID: {
 		description: 'Cloudflare account ID for opt-in Workers AI ai/run checks.',

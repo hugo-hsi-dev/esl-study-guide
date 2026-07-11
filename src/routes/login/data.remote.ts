@@ -1,10 +1,12 @@
 import { form, getRequestEvent, query } from '$app/server';
 import { invalid } from '@sveltejs/kit';
 import { APIError } from 'better-auth/api';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getAuth } from '$lib/server/auth';
-import { fixedAccountRoleForUsername } from '$lib/server/fixed-accounts';
-import { redirectForRole } from '$lib/server/roles';
+import { getDb } from '$lib/server/db';
+import { user } from '$lib/server/db/schema';
+import { getAccountRole, redirectForRole } from '$lib/server/roles';
 
 const usernameAuthSchema = z.object({
 	username: z.string().min(1),
@@ -16,9 +18,7 @@ export const getLoginPage = query(() => {
 
 	if (event.locals.user) {
 		return {
-			redirectTo: redirectForRole(
-				fixedAccountRoleForUsername(event.locals.user.username ?? '') ?? 'learner'
-			)
+			redirectTo: redirectForRole(getAccountRole(event.locals.user) ?? 'learner')
 		};
 	}
 
@@ -26,18 +26,23 @@ export const getLoginPage = query(() => {
 });
 
 export const signInUsername = form(usernameAuthSchema, async (data) => {
-	const role = fixedAccountRoleForUsername(data.username);
-
-	if (!role) invalid('Use one of the configured test accounts.');
-
+	let signedIn;
 	try {
-		await getAuth().api.signInUsername({
+		signedIn = await getAuth().api.signInUsername({
 			body: { username: data.username, password: data.password }
 		});
 	} catch (error) {
 		if (error instanceof APIError) invalid(error.message || 'Sign in failed');
 		invalid('Unexpected error');
 	}
+	if (!signedIn) invalid('Sign in failed');
 
+	const [account] = await getDb()
+		.select({ role: user.role })
+		.from(user)
+		.where(eq(user.id, signedIn.user.id))
+		.limit(1);
+	const role = getAccountRole(account ?? {});
+	if (!role) invalid('This account is not allowed to use the study tool.');
 	return { redirectTo: redirectForRole(role) };
 });

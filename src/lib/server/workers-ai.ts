@@ -19,6 +19,23 @@ const DEFAULT_TEXT_MODEL_ID = '@cf/meta/llama-3.1-8b-instruct-fp8';
 const DEFAULT_TRANSCRIPTION_MODEL_ID = '@cf/openai/whisper-large-v3-turbo';
 const DEFAULT_JSON_TIMEOUT_MS = 2000;
 const MAX_SPEAKING_AUDIO_BYTES = 10 * 1024 * 1024;
+const ALLOWED_SPEAKING_AUDIO_TYPES = new Set([
+	'audio/webm',
+	'audio/wav',
+	'audio/x-wav',
+	'audio/mpeg',
+	'audio/mp4',
+	'audio/ogg'
+]);
+
+export const validateSpeakingAudio = (file: File) => {
+	if (file.size > MAX_SPEAKING_AUDIO_BYTES) {
+		throw new AiOutputValidationError('Speaking audio is too large.');
+	}
+	if (!ALLOWED_SPEAKING_AUDIO_TYPES.has(file.type.toLowerCase().split(';')[0])) {
+		throw new AiOutputValidationError('Speaking audio must be WebM, WAV, MP3, MP4, or Ogg.');
+	}
+};
 
 export const getWorkersAiRuntime = (): WorkersAiRuntime | null => {
 	try {
@@ -97,10 +114,9 @@ export async function runWorkersAiJson<T>(
 
 export async function transcribeSpeakingAudio(file: File) {
 	const runtime = getWorkersAiRuntime();
-	if (!runtime || file.size === 0) return null;
-	if (file.size > MAX_SPEAKING_AUDIO_BYTES) {
-		throw new AiOutputValidationError('Speaking audio is too large.');
-	}
+	if (file.size === 0) return null;
+	validateSpeakingAudio(file);
+	if (!runtime) return null;
 
 	const audio = [...new Uint8Array(await file.arrayBuffer())];
 	const output = await runtime.ai.run(runtime.transcriptionModelId, { audio });
