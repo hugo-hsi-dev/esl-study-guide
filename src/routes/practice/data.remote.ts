@@ -22,7 +22,7 @@ import {
 const startSchema = z.object({ intent: z.string().optional() });
 const submitSchema = z.object({
 	practiceId: z.string().uuid(),
-	kind: z.enum(['choice', 'fill', 'short_text', 'speaking']),
+	kind: z.enum(['choice', 'listening_choice', 'fill', 'short_text', 'speaking']),
 	answer: z.string().max(160).optional(),
 	text: z.string().max(2000).optional(),
 	transcript: z.string().max(2400).optional(),
@@ -73,14 +73,14 @@ export const submitPractice = form(submitSchema, async (data) => {
 		const audio = data.kind === 'speaking' && data.audio?.size ? data.audio : undefined;
 		if (audio) validateSpeakingAudio(audio);
 		const response = validatePracticeResponse(
-			data.kind === 'choice' || data.kind === 'fill'
+			data.kind === 'choice' || data.kind === 'listening_choice' || data.kind === 'fill'
 				? { kind: data.kind, answer: data.answer }
 				: data.kind === 'short_text'
 					? { kind: data.kind, text: data.text }
 					: {
 							kind: data.kind,
 							responseSeconds: Number(data.responseSeconds),
-							...(transcript ? { transcript } : {})
+							...(transcript ? { transcript, transcriptSource: 'submitted' as const } : {})
 						}
 		);
 		const result = await submitPracticeResponse(
@@ -103,7 +103,14 @@ export const submitPractice = form(submitSchema, async (data) => {
 							const authorizedTranscript = transcribed?.text ?? authorizedResponse.transcript;
 							return {
 								...authorizedResponse,
-								...(authorizedTranscript ? { transcript: authorizedTranscript } : {})
+								...(authorizedTranscript
+									? {
+											transcript: authorizedTranscript,
+											transcriptSource: transcribed
+												? ('workers_ai_asr' as const)
+												: ('submitted' as const)
+										}
+									: {})
 							};
 						}
 					: undefined

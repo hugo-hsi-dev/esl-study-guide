@@ -30,6 +30,29 @@ export const hasRole = (user: { role?: string | null }, role: AccountRole) =>
 
 export const redirectForRole = (role: AccountRole) => (role === 'admin' ? '/admin' : '/study');
 
+const allowedRedirectPaths: Record<AccountRole, readonly string[]> = {
+	admin: ['/admin'],
+	learner: ['/study', '/assessment', '/practice', '/progress', '/guide']
+};
+
+export const redirectForRoleRequest = (role: AccountRole, requested?: string | null) => {
+	const fallback = redirectForRole(role);
+	const candidate = requested?.trim();
+	if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//')) return fallback;
+
+	try {
+		const base = new URL('https://study-guide.invalid');
+		const destination = new URL(candidate, base);
+		if (destination.origin !== base.origin) return fallback;
+		const allowed = allowedRedirectPaths[role].some(
+			(path) => destination.pathname === path || destination.pathname.startsWith(`${path}/`)
+		);
+		return allowed ? `${destination.pathname}${destination.search}${destination.hash}` : fallback;
+	} catch {
+		return fallback;
+	}
+};
+
 export function requireRole(
 	event: RequestEvent,
 	role: AccountRole
@@ -50,7 +73,12 @@ export function requireRole(
 
 	if (!user) {
 		const redirectTo = `${event.url.pathname}${event.url.search}`;
-		throw new Redirect(302, `/login?redirectTo=${encodeURIComponent(redirectTo)}`);
+		throw new Redirect(
+			302,
+			event.url.pathname === '/login'
+				? '/login'
+				: `/login?redirectTo=${encodeURIComponent(redirectTo)}`
+		);
 	}
 
 	if (!hasRole(user, role)) {

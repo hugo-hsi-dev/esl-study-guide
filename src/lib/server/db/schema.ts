@@ -7,10 +7,21 @@ import type {
 	PracticeProblem
 } from '$lib/server/adaptive-practice';
 import type { SkillProfile, StudyPlan, DiagnosisMetadata } from '$lib/server/assessment-diagnosis';
-import type { AssessmentArea } from '$lib/server/assessment-items';
+import type { AssessmentArea, AssessmentFormId } from '$lib/server/assessment-items';
 
 export type AssessmentAttemptStatus = 'in_progress' | 'completed';
 export type PracticeAttemptStatus = 'presented' | 'answered';
+
+export type PlacementTestKind =
+	'accuplacer_esl' | 'cambridge_cept' | 'school_specific' | 'not_sure';
+
+export type PlacementTestProfile = {
+	kind: PlacementTestKind;
+	institution: string;
+	targetOutcome: string;
+	testDate?: string;
+	knownSections?: string;
+};
 
 export type AssessmentIntake = {
 	goal: string;
@@ -20,12 +31,16 @@ export type AssessmentIntake = {
 		writing: 1 | 2 | 3 | 4 | 5;
 	};
 	timeZone: string;
+	/** Optional so assessment attempts saved before placement profiles remain readable. */
+	placementTest?: PlacementTestProfile;
 };
 
 export type AttemptSelectedItem = {
 	id: string;
 	version: number;
 	area: AssessmentArea;
+	/** Present on new attempts; legacy attempts derive it from the versioned item. */
+	formId?: AssessmentFormId;
 };
 
 export type AttemptResponse =

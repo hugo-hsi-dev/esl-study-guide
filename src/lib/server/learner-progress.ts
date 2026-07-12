@@ -1,6 +1,10 @@
 import { desc, eq } from 'drizzle-orm';
 import {
+	buildPracticeReview,
+	getPracticeReviewSchedule,
 	getReassessmentProgress,
+	practiceModalityMatchesTarget,
+	practiceTargetKey,
 	validatePracticeFeedback,
 	validatePracticeMetadata,
 	validatePracticeProblem
@@ -16,7 +20,7 @@ import {
 	type AssessmentArea,
 	type ErrorSignal
 } from './assessment-items';
-import { assessmentIntakeSchema } from './assessment-attempts';
+import { assessmentIntakeSchema, nextAssessmentFormId } from './assessment-attempts';
 import type { Db } from './db';
 import { assessmentAttempt, practiceAttempt, user } from './db/schema';
 
@@ -49,8 +53,19 @@ const parsePractice = (row: PracticeRow) => ({
 	metadata: validatePracticeMetadata(row.metadataJson)
 });
 
-const feedbackScore = (feedback: ReturnType<typeof validatePracticeFeedback> | null) => {
+const feedbackScore = (
+	feedback: ReturnType<typeof validatePracticeFeedback> | null,
+	problem?: ReturnType<typeof validatePracticeProblem>,
+	metadata?: ReturnType<typeof validatePracticeMetadata>
+) => {
 	if (!feedback?.scored) return null;
+	if (problem && !practiceModalityMatchesTarget(problem)) return null;
+	if (
+		problem?.targetArea === 'listening' &&
+		(problem.kind !== 'listening_choice' || !metadata?.audioDeliveredAt)
+	) {
+		return null;
+	}
 	return feedback.kind === 'objective' ? feedback.correct : feedback.meetsTarget;
 };
 
@@ -79,6 +94,37 @@ const weekKey = (date: Date, timeZone: string) => {
 	return local.toISOString().slice(0, 10);
 };
 
+export function getWeeklySessionTarget({
+	now,
+	testDate,
+	remainingResponses,
+	requiredSessions,
+	completedSessions
+}: {
+	now: Date;
+	testDate?: string;
+	remainingResponses: number;
+	requiredSessions: number;
+	completedSessions: number;
+}) {
+	const testDateTime = testDate ? Date.parse(`${testDate}T23:59:59Z`) : Number.NaN;
+	const weeksUntilTest =
+		Number.isFinite(testDateTime) && testDateTime >= now.getTime()
+			? Math.max(1, Math.ceil((testDateTime - now.getTime()) / (7 * 24 * 60 * 60 * 1000)))
+			: null;
+	const sessionsNeeded = Math.max(
+		1,
+		Math.ceil(remainingResponses / 5),
+		requiredSessions - completedSessions
+	);
+	return {
+		target: weeksUntilTest
+			? Math.min(5, Math.max(1, Math.ceil(sessionsNeeded / weeksUntilTest)))
+			: 5,
+		basedOnTestDate: weeksUntilTest !== null
+	};
+}
+
 const buildSessions = (rows: ReturnType<typeof parsePractice>[]) => {
 	const groups = new Map<string, ReturnType<typeof parsePractice>[]>();
 	for (const row of rows) {
@@ -92,7 +138,7 @@ const buildSessions = (rows: ReturnType<typeof parsePractice>[]) => {
 			const ordered = sessionRows.sort((left, right) => left.sequence - right.sequence);
 			const answered = ordered.filter((row) => row.status === 'answered');
 			const scores = answered
-				.map((row) => feedbackScore(row.feedback))
+				.map((row) => feedbackScore(row.feedback, row.problem, row.metadata))
 				.filter((score) => score !== null);
 			const completed = ordered.length === 5 && answered.length === 5;
 			return {
@@ -115,8 +161,23 @@ const buildSessions = (rows: ReturnType<typeof parsePractice>[]) => {
 					targetArea: row.problem.targetArea,
 					targetSignal: row.problem.targetSignal,
 					difficulty: row.problem.difficulty,
-					scored: row.feedback?.scored ?? false,
-					correct: feedbackScore(row.feedback),
+					...(row.problem.kind === 'listening_choice'
+						? {
+								audioUrl: `/practice/audio/${row.id}`,
+								audioTranscript: row.problem.audioScript
+							}
+						: {}),
+					scored: feedbackScore(row.feedback, row.problem, row.metadata) !== null,
+					correct: feedbackScore(row.feedback, row.problem, row.metadata),
+					...(row.feedback
+						? buildPracticeReview(row.problem, row.answer, row.feedback)
+						: {
+								prompt: row.problem.prompt,
+								learnerAnswer: 'No response was saved.',
+								expectedAnswer: 'Feedback unavailable.',
+								explanation: 'Feedback unavailable.',
+								nextStep: 'Continue with another practice problem.'
+							}),
 					feedback: row.feedback
 				}))
 			};
@@ -124,33 +185,45 @@ const buildSessions = (rows: ReturnType<typeof parsePractice>[]) => {
 		.sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime());
 };
 
-const signalPerformance = (rows: ReturnType<typeof parsePractice>[]) => {
+export const summarizeSignalPerformance = (
+	entries: readonly { area: AssessmentArea; signal: ErrorSignal; correct: boolean }[]
+) => {
 	const groups = new Map<
-		ErrorSignal,
+		string,
 		{ signal: ErrorSignal; area: AssessmentArea; attempts: number; correct: number }
 	>();
-	for (const row of rows) {
-		const score = feedbackScore(row.feedback);
-		if (score === null) continue;
-		const current = groups.get(row.problem.targetSignal) ?? {
-			signal: row.problem.targetSignal,
-			area: row.problem.targetArea,
+	for (const entry of entries) {
+		const key = practiceTargetKey(entry.area, entry.signal);
+		const current = groups.get(key) ?? {
+			signal: entry.signal,
+			area: entry.area,
 			attempts: 0,
 			correct: 0
 		};
 		current.attempts += 1;
-		if (score) current.correct += 1;
-		groups.set(current.signal, current);
+		if (entry.correct) current.correct += 1;
+		groups.set(key, current);
 	}
 	return [...groups.values()]
 		.map((entry) => ({ ...entry, accuracy: entry.correct / entry.attempts }))
 		.sort((left, right) => left.accuracy - right.accuracy || right.attempts - left.attempts);
 };
 
+const signalPerformance = (rows: ReturnType<typeof parsePractice>[]) =>
+	summarizeSignalPerformance(
+		rows.flatMap((row) => {
+			const score = feedbackScore(row.feedback, row.problem, row.metadata);
+			return score === null
+				? []
+				: [{ area: row.problem.targetArea, signal: row.problem.targetSignal, correct: score }];
+		})
+	);
+
 const assessmentSummary = (attempt: ReturnType<typeof parseAssessment>) => ({
 	attemptId: attempt.id,
 	status: attempt.status,
 	goal: attempt.intake.goal,
+	placementTest: attempt.intake.placementTest,
 	definitionVersion: attempt.definitionVersion,
 	createdAt: attempt.createdAt,
 	updatedAt: attempt.updatedAt,
@@ -181,32 +254,71 @@ export async function getLearnerProductData(db: Db, learnerUserId: string, now =
 		(attempt) => attempt.status === 'completed' && attempt.skillProfile && attempt.studyPlan
 	);
 	const latest = completedAssessments[0];
+	const reassessmentAvailable = latest
+		? (() => {
+				try {
+					return (
+						nextAssessmentFormId(
+							latest.intake.placementTest,
+							assessments
+								.filter((attempt) => attempt.status === 'completed')
+								.map((attempt) => attempt.selectedItemsJson)
+						) !== null
+					);
+				} catch {
+					return false;
+				}
+			})()
+		: true;
 	const latestPractice = latest
 		? practice.filter((attempt) => attempt.assessmentAttemptId === latest.id)
 		: [];
 	const sessions = buildSessions(practice);
 	const latestSessions = buildSessions(latestPractice);
 	const scoredHistory = latestPractice.flatMap((row) => {
-		const score = feedbackScore(row.feedback);
+		const score = feedbackScore(row.feedback, row.problem, row.metadata);
 		return score === null
 			? []
 			: [
 					{
 						practiceId: row.id,
+						sessionId: row.sessionId,
 						targetArea: row.problem.targetArea,
 						targetSignal: row.problem.targetSignal,
 						difficulty: row.problem.difficulty,
 						adaptiveReason: row.problem.adaptiveReason,
 						contentId: row.problem.id,
 						scored: true,
-						correct: score
+						correct: score,
+						answeredAt: (row.answeredAt ?? row.createdAt).toISOString()
 					}
 				];
 	});
+	const targetReviewSchedules = (latest?.studyPlan?.targets ?? []).map((target) => ({
+		...target,
+		...getPracticeReviewSchedule(scoredHistory, target.area, target.signal, now)
+	}));
+	const practicedReviewSchedules = targetReviewSchedules.filter((target) => target.attempts > 0);
+	const reviewsDue = practicedReviewSchedules.filter((target) => target.due).length;
+	const nextReviewAt =
+		practicedReviewSchedules
+			.flatMap((target) => (target.dueAt && !target.due ? [target.dueAt] : []))
+			.sort()[0] ?? null;
 	const threshold = latest?.studyPlan?.reassessAfterPracticeCount ?? 20;
-	const reassessment = getReassessmentProgress(scoredHistory, threshold);
+	const reassessment = getReassessmentProgress(scoredHistory, threshold, {
+		targets: latest?.studyPlan?.targets,
+		completedSessions: latestSessions.filter((session) => session.status === 'completed').length
+	});
 	const timeZone = latest?.intake.timeZone ?? 'UTC';
 	const currentWeek = weekKey(now, timeZone);
+	const testDate = latest?.intake.placementTest.testDate;
+	const weeklySessionGoal = getWeeklySessionTarget({
+		now,
+		testDate,
+		remainingResponses: reassessment.remaining,
+		requiredSessions: reassessment.requiredSessions,
+		completedSessions: reassessment.completedSessions
+	});
 	const completedThisWeek = sessions.filter(
 		(session) => session.completedAt && weekKey(session.completedAt, timeZone) === currentWeek
 	).length;
@@ -218,30 +330,46 @@ export async function getLearnerProductData(db: Db, learnerUserId: string, now =
 			? { href: '/assessment', label: 'Start Skill Diagnosis' }
 			: inProgressSession
 				? { href: '/practice', label: 'Resume today’s session' }
-				: { href: '/practice', label: 'Start today’s session' };
+				: reassessment.recommended && reassessmentAvailable
+					? { href: '/assessment?new=1', label: 'Start recommended reassessment' }
+					: reviewsDue > 0
+						? {
+								href: '/practice',
+								label: `Review ${reviewsDue} due ${reviewsDue === 1 ? 'skill' : 'skills'}`
+							}
+						: { href: '/practice', label: 'Start today’s session' };
 
 	return {
 		primaryAction,
-		weeklyGoal: { completed: Math.min(completedThisWeek, 5), target: 5 },
+		weeklyGoal: {
+			completed: completedThisWeek,
+			target: weeklySessionGoal.target,
+			testDate: testDate ?? null,
+			basedOnTestDate: weeklySessionGoal.basedOnTestDate
+		},
+		reviewSchedule: { due: reviewsDue, nextReviewAt },
 		latestAssessment: latest ? assessmentSummary(latest) : null,
 		assessmentHistory: completedAssessments.map(assessmentSummary),
 		currentTargets: latest?.studyPlan?.targets ?? [],
 		lastSession: sessions[0] ?? null,
 		sessions,
 		signalPerformance: signalPerformance(latestPractice),
-		reassessment
+		reassessment: { ...reassessment, available: reassessmentAvailable }
 	};
 }
 
 export function bandChanges(history: { skillProfile: SkillProfile | null }[]) {
 	const current = history[0]?.skillProfile;
 	const previous = history[1]?.skillProfile;
-	return areas.map((area) => ({
-		area,
-		current: current?.skillBands[area] ?? 'insufficient_evidence',
-		previous: previous?.skillBands[area] ?? null,
-		changed: Boolean(previous && current?.skillBands[area] !== previous.skillBands[area])
-	}));
+	const assessedAreas = current?.assessedAreas ? new Set(current.assessedAreas) : null;
+	return areas
+		.filter((area) => !assessedAreas || assessedAreas.has(area))
+		.map((area) => ({
+			area,
+			current: current?.skillBands[area] ?? 'insufficient_evidence',
+			previous: previous?.skillBands[area] ?? null,
+			changed: Boolean(previous && current?.skillBands[area] !== previous.skillBands[area])
+		}));
 }
 
 export async function getAdminProductData(db: Db) {

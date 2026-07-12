@@ -1,16 +1,54 @@
 <svelte:head><title>ESL Study Guide</title></svelte:head>
 
-<main class="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-6 px-4">
+<main class="mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center gap-8 px-4 py-12">
 	<header class="space-y-3">
-		<p class="text-sm font-medium text-teal-700">ESL Study Guide</p>
-		<h1 class="text-4xl font-semibold text-zinc-950">Know what to practice next</h1>
-		<p class="max-w-xl text-lg text-zinc-700">
-			Build a clear Skill Profile from 14 short English tasks in about 15–20 minutes. It gives you a
-			starting practice profile, not a grade or a full language-level result.
+		<p class="text-sm font-semibold uppercase tracking-wide text-teal-700">
+			ESL placement study guide
+		</p>
+		<h1 class="max-w-3xl text-4xl font-semibold text-zinc-950 sm:text-5xl">
+			Know what to practice next for your ESL placement test
+		</h1>
+		<p class="max-w-2xl text-lg text-zinc-700">
+			Choose the closest test profile and complete a quick readiness baseline. It gives you a
+			starting practice profile, not a grade or a full language-level result, then guides short
+			teaching and practice sessions built around your evidence.
 		</p>
 	</header>
 
 	<nav>
-		<a class="rounded bg-zinc-950 px-4 py-2 font-medium text-white" href="/login">Sign in</a>
+		<a
+			class="inline-flex min-h-11 items-center rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-white"
+			href="/login">Sign in and start studying</a
+		>
 	</nav>
+
+	<section class="grid gap-4 sm:grid-cols-3" aria-label="How placement preparation works">
+		<article class="rounded-2xl border border-zinc-200 bg-white p-5">
+			<p class="text-sm font-semibold text-teal-700">1 · Set the target</p>
+			<h2 class="mt-2 text-lg font-semibold text-zinc-950">Choose a test profile</h2>
+			<p class="mt-2 text-sm text-zinc-600">
+				Choose ACCUPLACER ESL, Cambridge CEPT, a school-specific target, or a general baseline. The
+				profile guides practice; it does not reproduce your school’s exact test.
+			</p>
+		</article>
+		<article class="rounded-2xl border border-zinc-200 bg-white p-5">
+			<p class="text-sm font-semibold text-teal-700">2 · Find the gaps</p>
+			<h2 class="mt-2 text-lg font-semibold text-zinc-950">See the evidence</h2>
+			<p class="mt-2 text-sm text-zinc-600">
+				Review what you chose, the correct answer, why it works, and how certain the baseline is.
+			</p>
+		</article>
+		<article class="rounded-2xl border border-zinc-200 bg-white p-5">
+			<p class="text-sm font-semibold text-teal-700">3 · Learn and review</p>
+			<h2 class="mt-2 text-lg font-semibold text-zinc-950">Build test-ready skills</h2>
+			<p class="mt-2 text-sm text-zinc-600">
+				Use a rule, worked example, guided problem, correction, and later review—not random drills.
+			</p>
+		</article>
+	</section>
+
+	<p class="max-w-2xl text-sm text-zinc-500">
+		This study guide does not issue an official placement score. Your school decides placement and
+		any required cut scores.
+	</p>
 </main>

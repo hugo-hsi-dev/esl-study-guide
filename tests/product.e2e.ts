@@ -8,6 +8,12 @@ async function signIn(page: Page, username: string, password: string) {
 }
 
 async function answerAssessmentTask(page: Page) {
+	const audio = page.locator('audio');
+	if (await audio.count()) {
+		await audio.evaluate((element) => (element as HTMLAudioElement).play());
+		await audio.evaluate((element) => element.dispatchEvent(new Event('ended')));
+		await expect(page.getByText('Playback confirmed.')).toBeVisible();
+	}
 	const choices = page.locator('input[type="radio"][name="answer"]');
 	if (await choices.count()) {
 		await choices.first().check();
@@ -19,12 +25,17 @@ async function answerAssessmentTask(page: Page) {
 		await page
 			.locator('textarea[name="speakingTranscript"]')
 			.fill('I had a problem at work, so I asked a coworker for help. We solved it together.');
-		await page.locator('input[name="speakingSeconds"]').fill('28');
 	}
 	await page.getByRole('button', { name: /Save (and continue|final response)/ }).click();
 }
 
 async function answerPracticeProblem(page: Page) {
+	const audio = page.locator('audio');
+	if (await audio.count()) {
+		await audio.evaluate((element) => (element as HTMLAudioElement).play());
+		await audio.evaluate((element) => element.dispatchEvent(new Event('ended')));
+		await expect(page.getByText('Playback confirmed.')).toBeVisible();
+	}
 	const choices = page.locator('input[type="radio"][name="answer"]');
 	if (await choices.count()) {
 		await choices.first().check();
@@ -38,7 +49,6 @@ async function answerPracticeProblem(page: Page) {
 		await page
 			.locator('textarea[name="transcript"]')
 			.fill('I called the clinic yesterday and asked a clear question about my appointment.');
-		await page.locator('input[name="responseSeconds"]').fill('25');
 	}
 	await page.getByRole('button', { name: 'Check response' }).click();
 }
@@ -76,6 +86,9 @@ test('Learner study journey persists and Admin remains read-only', async ({ page
 	}
 	await page.getByRole('button', { name: 'Start Skill Diagnosis' }).click();
 	await expect(page.getByText('Task 1 of 14')).toBeVisible();
+	expect(await page.content()).not.toContain(
+		'I will meet my coworker at eight fifty near the station.'
+	);
 
 	await answerAssessmentTask(page);
 	await expect(page.getByText('Task 2 of 14')).toBeVisible();
@@ -91,6 +104,15 @@ test('Learner study journey persists and Admin remains read-only', async ({ page
 	await expect(page.getByRole('heading', { name: 'Your Skill Profile is ready' })).toBeVisible({
 		timeout: 20_000
 	});
+	await expect(
+		page.getByText(/internal skill area\(s\) within your selected section\(s\)/)
+	).toBeVisible();
+	const listeningTranscript = page.getByText('Read the transcript after replaying').first();
+	await expect(listeningTranscript).toBeVisible();
+	await listeningTranscript.click();
+	await expect(
+		page.getByText('I will meet my coworker at eight fifty near the station.')
+	).toBeVisible();
 
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'Your Skill Profile is ready' })).toBeVisible();
