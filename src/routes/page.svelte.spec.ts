@@ -10,9 +10,9 @@ describe('public home', () => {
 
 		await expect
 			.element(page.getByRole('heading', { level: 1 }))
-			.toHaveTextContent('Build the ESL placement skills your target test may require');
+			.toHaveTextContent('Know what to practice next for your ESL placement test');
 		await expect
-			.element(page.getByRole('link', { name: 'Start studying' }))
+			.element(page.getByRole('link', { name: 'Sign in and start studying' }))
 			.toHaveAttribute('href', '/login');
 		await expect
 			.element(page.getByText(/does not issue an official placement score/))

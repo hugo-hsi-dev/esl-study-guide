@@ -1,0 +1,25 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "esl-study-guide-local",
+	"compatibility_date": "2026-07-08",
+	"compatibility_flags": ["nodejs_als"],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"vars": {
+		"ORIGIN": "http://127.0.0.1:4173",
+		"WORKERS_AI_TEXT_MODEL_ID": "@cf/meta/llama-3.1-8b-instruct-fp8",
+		"WORKERS_AI_TRANSCRIPTION_MODEL_ID": "@cf/openai/whisper-large-v3-turbo",
+		"WORKERS_AI_TTS_MODEL_ID": "@cf/deepgram/aura-2-en"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "esl-study-guide",
+			"database_id": "6cc1f525-5e7b-45c6-a7bf-edfe6aa13af5",
+			"migrations_dir": "drizzle"
+		}
+	]
+}

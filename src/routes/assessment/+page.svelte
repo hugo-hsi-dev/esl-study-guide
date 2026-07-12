@@ -26,6 +26,7 @@
 	let showNewIntake = $state(!page.state);
 	let timeZone = $state('UTC');
 	let stepHeading: HTMLHeadingElement | undefined = $state();
+	let resultsHeading: HTMLHeadingElement | undefined = $state();
 	let recordingState = $state<'idle' | 'starting' | 'recording'>('idle');
 	let recordingItemId = $state<string | null>(null);
 	let recordingSeconds = $state(0);
@@ -262,8 +263,9 @@
 			safely leave and return.
 		</p>
 		<p class="max-w-2xl rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-			This quick baseline guides your practice. It is not an official placement score and cannot
-			predict whether you will pass a test or enter a particular course.
+			This quick baseline creates a starting practice profile, not a grade or full language-level
+			result. It is not an official placement score and cannot predict whether you will pass a test
+			or enter a particular course.
 		</p>
 	</header>
 
@@ -403,25 +405,18 @@
 		</section>
 	{:else if assessment?.status === 'in_progress' && currentItem}
 		<section class="space-y-5">
-			<div class="space-y-2">
+			<div class="space-y-2" aria-label={`Task ${currentIndex + 1} of ${assessment.items.length}`}>
 				<div class="flex items-center justify-between text-sm text-zinc-600">
 					<span>Task {currentIndex + 1} of {assessment.items.length}</span>
 					<span>{savedCount} saved</span>
 				</div>
-				<div
-					class="h-2 overflow-hidden rounded-full bg-zinc-200"
-					role="progressbar"
-					aria-label="Readiness baseline task progress"
-					aria-valuemin="1"
-					aria-valuemax={assessment.items.length}
-					aria-valuenow={currentIndex + 1}
+				<progress
+					class="h-2 w-full overflow-hidden rounded-full accent-teal-700"
+					value={currentIndex + 1}
+					max={assessment.items.length}
+					aria-label={`Assessment progress: task ${currentIndex + 1} of ${assessment.items.length}`}
 					aria-valuetext={`Task ${currentIndex + 1} of ${assessment.items.length}; ${savedCount} responses saved`}
-				>
-					<div
-						class="h-full rounded-full bg-teal-600"
-						style={`width: ${((currentIndex + 1) / assessment.items.length) * 100}%`}
-					></div>
-				</div>
+				></progress>
 				<p class="text-sm text-zinc-600">
 					<strong class="font-semibold text-zinc-800">Active baseline:</strong>
 					{placementTestLabel(assessment.intake.placementTest.kind)} · reviewed form {assessment.formId ??
@@ -575,7 +570,7 @@
 										class="min-h-11 rounded-lg bg-zinc-950 px-4 py-2 font-medium text-white"
 										onclick={() => startRecording(currentItem.id)}
 										disabled={recordingState !== 'idle'}
-										>{recordingState === 'starting' ? 'Starting…' : 'Record'}</button
+										>{recordingState === 'starting' ? 'Starting…' : 'Record answer'}</button
 									>
 									{#if recordingState === 'recording' && recordingItemId === currentItem.id}
 										<button
@@ -644,6 +639,11 @@
 								{#if recordingError}<p class="text-sm text-red-800" role="alert">
 										{recordingError}
 									</p>{/if}
+								<p class="text-sm text-zinc-600">
+									Aim for about 20–30 seconds so there is enough language to review. Audio is
+									transcribed only to create feedback and is not stored. Pronunciation, fluency,
+									intelligibility, and delivery are not scored.
+								</p>
 							</div>
 						{/if}
 
@@ -689,6 +689,8 @@
 						if (await form.submit()) {
 							assessment = form.result?.state ?? assessment;
 							window.scrollTo({ top: 0, behavior: 'smooth' });
+							await tick();
+							resultsHeading?.focus();
 						}
 					})}
 					class="rounded-xl border border-teal-200 bg-teal-50 p-5"
@@ -712,16 +714,22 @@
 				<p class="text-sm font-semibold uppercase tracking-wide text-teal-800">
 					Quick readiness baseline complete
 				</p>
-				<h2 class="mt-2 text-2xl font-semibold text-zinc-950">Your Skill Profile is ready</h2>
+				<h2
+					class="mt-2 text-2xl font-semibold text-zinc-950"
+					tabindex="-1"
+					bind:this={resultsHeading}
+				>
+					Your Skill Profile is ready
+				</h2>
 				<p class="mt-2 font-medium text-zinc-800">
 					Evidence coverage: {assessment.skillProfile.diagnosisQuality === 'full'
 						? `Complete across ${assessment.skillProfile.assessedAreas?.length ?? 6} internal skill area(s) within your selected section(s)`
 						: `Partial across ${assessment.skillProfile.assessedAreas?.length ?? 6} internal skill area(s) within your selected section(s)`}
 				</p>
 				<p class="mt-2 text-sm text-zinc-700">
-					Evidence coverage only describes which responses could be reviewed. These internal
-					practice bands are not official placement scores, CEFR levels, or predictions that you
-					will pass.
+					Evidence coverage only describes which responses could be reviewed. This is a starting
+					practice profile, not a grade or full language-level result. These internal practice bands
+					are not official placement scores, CEFR levels, or predictions that you will pass.
 				</p>
 				{#if assessment.skillProfile.diagnosisQuality === 'limited'}
 					<p class="mt-2 text-sm text-amber-900">
@@ -799,7 +807,9 @@
 			</div>
 
 			<div class="rounded-2xl border border-zinc-200 bg-white p-6">
-				<h2 class="text-xl font-semibold text-zinc-950">Practice plan</h2>
+				<h2 class="text-xl font-semibold text-zinc-950">
+					Practice priorities from these responses
+				</h2>
 				{#if assessment.studyPlan.targets.length}
 					<ol class="mt-4 space-y-3">
 						{#each assessment.studyPlan.targets as target (`${target.area}:${target.signal}`)}

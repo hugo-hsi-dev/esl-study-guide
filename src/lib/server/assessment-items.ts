@@ -63,6 +63,7 @@ export type AssessmentItem = {
 	readonly answerKey?: readonly string[];
 	readonly rubric?: readonly string[];
 	readonly choices?: readonly Choice[];
+	readonly responseSignals?: Readonly<Partial<Record<string, readonly ErrorSignal[]>>>;
 	readonly serverOnlyAudioScript?: string;
 	readonly serverOnlyAudioMetadata?: {
 		provider: 'workers-ai';
@@ -117,6 +118,11 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'At 9:30.' },
 			{ id: 'd', text: 'At 8:05.' }
 		],
+		responseSignals: {
+			a: ['detail'],
+			c: ['detail'],
+			d: ['detail']
+		},
 		serverOnlyAudioScript: 'I will meet my coworker at eight fifty near the station.',
 		serverOnlyAudioMetadata: {
 			provider: 'workers-ai',
@@ -160,6 +166,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'Ana is cooking dinner at work.' },
 			{ id: 'd', text: 'Ana needs to collect medicine before work.' }
 		],
+		responseSignals: {
+			b: ['main_idea'],
+			c: ['main_idea']
+		},
 		serverOnlyAudioScript:
 			'The pharmacy closes at seven, so I need to pick up my medicine after work.',
 		serverOnlyAudioMetadata: {
@@ -204,6 +214,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'Platform 6.' },
 			{ id: 'd', text: 'Platform 8.' }
 		],
+		responseSignals: {
+			a: ['detail'],
+			b: ['detail']
+		},
 		serverOnlyAudioScript:
 			'The number twenty-four bus to Green Street will leave from platform six.',
 		serverOnlyAudioMetadata: {
@@ -248,6 +262,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'It arrived late.' },
 			{ id: 'd', text: 'It was the wrong color.' }
 		],
+		responseSignals: {
+			a: ['detail'],
+			c: ['detail']
+		},
 		learnerTask: {
 			instructions: 'Why did Lina return the jacket?',
 			choices: [
@@ -286,6 +304,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'Omar works at the library on Monday.' },
 			{ id: 'd', text: 'The library opened again on Sunday afternoon.' }
 		],
+		responseSignals: {
+			a: ['main_idea'],
+			c: ['main_idea']
+		},
 		learnerTask: {
 			instructions: 'What is the passage mainly about?',
 			choices: [
@@ -324,6 +346,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'more expensive' },
 			{ id: 'd', text: 'free of charge' }
 		],
+		responseSignals: {
+			b: ['vocabulary_in_context'],
+			c: ['vocabulary_in_context']
+		},
 		learnerTask: {
 			instructions: 'What does "available" mean in this passage?',
 			choices: [
@@ -361,6 +387,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'going' },
 			{ id: 'd', text: 'gone' }
 		],
+		responseSignals: {
+			a: ['subject_verb_agreement'],
+			c: ['verb_form']
+		},
 		learnerTask: {
 			instructions: 'Choose the best word to complete the sentence.',
 			choices: [
@@ -398,6 +428,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'some' },
 			{ id: 'd', text: 'many' }
 		],
+		responseSignals: {
+			a: ['article_determiner'],
+			c: ['article_determiner']
+		},
 		learnerTask: {
 			instructions: 'Choose the best word to complete the sentence.',
 			choices: [
@@ -435,6 +469,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'on' },
 			{ id: 'd', text: 'between' }
 		],
+		responseSignals: {
+			a: ['preposition'],
+			b: ['preposition']
+		},
 		learnerTask: {
 			instructions: 'Choose the best word to complete the sentence.',
 			choices: [
@@ -472,6 +510,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'later than planned' },
 			{ id: 'd', text: 'cancelled completely' }
 		],
+		responseSignals: {
+			a: ['vocabulary_in_context'],
+			b: ['vocabulary_in_context']
+		},
 		learnerTask: {
 			instructions: 'What does "delayed" mean in this sentence?',
 			choices: [
@@ -509,6 +551,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'build' },
 			{ id: 'd', text: 'put' }
 		],
+		responseSignals: {
+			b: ['collocation'],
+			c: ['collocation']
+		},
 		learnerTask: {
 			instructions: 'Choose the natural word to complete the sentence.',
 			choices: [
@@ -546,6 +592,10 @@ const assessmentFormAItems = [
 			{ id: 'c', text: 'easy to find' },
 			{ id: 'd', text: 'open very late' }
 		],
+		responseSignals: {
+			a: ['vocabulary_in_context'],
+			c: ['vocabulary_in_context']
+		},
 		learnerTask: {
 			instructions: 'What does "crowded" mean in this sentence?',
 			choices: [
@@ -1442,16 +1492,42 @@ const assessmentFormAItems = [
 	}
 ] as const satisfies readonly Omit<AssessmentItem, 'formId'>[];
 
-export const seedAssessmentItems: readonly AssessmentItem[] = [
-	...assessmentFormAItems.map((item) => ({
+const withDefaultResponseSignals = (item: AssessmentItem): AssessmentItem => {
+	if (
+		item.answerMode !== 'choice' ||
+		!item.choices ||
+		!item.answerKey?.length ||
+		!item.primaryScoredSignal
+	) {
+		return item;
+	}
+
+	const correctAnswers = new Set(item.answerKey);
+	return {
 		...item,
-		formId: 'A' as const,
-		learnerTask: {
-			...item.learnerTask,
-			...('choices' in item ? { choices: item.choices } : {})
-		}
-	})),
-	...assessmentFormBItems
+		responseSignals: Object.fromEntries(
+			item.choices
+				.filter((choice) => !correctAnswers.has(choice.id))
+				.map((choice) => [
+					choice.id,
+					item.responseSignals?.[choice.id] ?? [item.primaryScoredSignal!]
+				])
+		)
+	};
+};
+
+export const seedAssessmentItems: readonly AssessmentItem[] = [
+	...assessmentFormAItems.map((item) =>
+		withDefaultResponseSignals({
+			...item,
+			formId: 'A' as const,
+			learnerTask: {
+				...item.learnerTask,
+				...('choices' in item ? { choices: item.choices } : {})
+			}
+		})
+	),
+	...assessmentFormBItems.map(withDefaultResponseSignals)
 ];
 
 export function getSeedAssessmentItems(): readonly AssessmentItem[] {
@@ -1627,6 +1703,27 @@ export function getAssessmentItemAudioSource(itemId: string, itemVersion?: numbe
 	};
 }
 
+export function getAssessmentResponseSignals(itemId: string, answer: string): ErrorSignal[];
+export function getAssessmentResponseSignals(
+	itemId: string,
+	itemVersion: number,
+	answer: string
+): ErrorSignal[];
+export function getAssessmentResponseSignals(
+	itemId: string,
+	itemVersionOrAnswer: number | string,
+	maybeAnswer?: string
+): ErrorSignal[] {
+	const item =
+		typeof itemVersionOrAnswer === 'number'
+			? getAssessmentItemVersion(itemId, itemVersionOrAnswer)
+			: currentAssessmentItems(getSeedAssessmentItems()).find(
+					(candidate) => candidate.id === itemId
+				);
+	const answer = typeof itemVersionOrAnswer === 'string' ? itemVersionOrAnswer : maybeAnswer;
+	return answer ? [...(item?.responseSignals?.[answer] ?? [])] : [];
+}
+
 export function validateSeedAssessmentItems(items: readonly AssessmentItem[]) {
 	const requiredAreas = new Set<AssessmentArea>([
 		'listening',
@@ -1706,6 +1803,35 @@ export function validateSeedAssessmentItems(items: readonly AssessmentItem[]) {
 
 		if (!item.answerKey?.length && !item.rubric?.length) {
 			throw new Error(`Assessment Item ${item.id} needs an answer key or rubric`);
+		}
+
+		if (item.choices?.length) {
+			const choiceIds = new Set(item.choices.map((choice) => choice.id));
+			const answerKeys = new Set(item.answerKey ?? []);
+			if (!item.responseSignals) {
+				throw new Error(`Assessment Item ${item.id} needs response-to-signal mappings`);
+			}
+
+			for (const [answerId, signals] of Object.entries(item.responseSignals) as [
+				string,
+				readonly ErrorSignal[]
+			][]) {
+				if (!choiceIds.has(answerId)) {
+					throw new Error(`Assessment Item ${item.id} maps a response that is not a choice`);
+				}
+				if (answerKeys.has(answerId)) {
+					throw new Error(`Assessment Item ${item.id} must not diagnose a correct response`);
+				}
+				if (signals.length === 0) {
+					throw new Error(`Assessment Item ${item.id} maps a response without an Error Signal`);
+				}
+			}
+
+			for (const choiceId of choiceIds) {
+				if (!answerKeys.has(choiceId) && !item.responseSignals[choiceId]?.length) {
+					throw new Error(`Assessment Item ${item.id} is missing a response-to-signal mapping`);
+				}
+			}
 		}
 
 		if (

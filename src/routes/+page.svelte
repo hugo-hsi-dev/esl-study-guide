@@ -6,10 +6,11 @@
 			ESL placement study guide
 		</p>
 		<h1 class="max-w-3xl text-4xl font-semibold text-zinc-950 sm:text-5xl">
-			Build the ESL placement skills your target test may require
+			Know what to practice next for your ESL placement test
 		</h1>
 		<p class="max-w-2xl text-lg text-zinc-700">
-			Choose the closest test profile, see what this quick baseline suggests, and follow short
+			Choose the closest test profile and complete a quick readiness baseline. It gives you a
+			starting practice profile, not a grade or a full language-level result, then guides short
 			teaching and practice sessions built around your evidence.
 		</p>
 	</header>
@@ -17,7 +18,7 @@
 	<nav>
 		<a
 			class="inline-flex min-h-11 items-center rounded-lg bg-zinc-950 px-5 py-3 font-semibold text-white"
-			href="/login">Start studying</a
+			href="/login">Sign in and start studying</a
 		>
 	</nav>
 

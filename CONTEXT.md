@@ -13,7 +13,7 @@ The owner account that can view the learner's assessment and study data in a rea
 _Avoid_: Teacher, tutor, content editor
 
 **Skill Diagnosis**:
-A quick, low-stakes readiness baseline that identifies current strengths and weaknesses so the tool can choose what to teach and practice next. It reports bounded evidence, not an official placement result.
+A quick, low-stakes readiness baseline that summarizes current task evidence so the tool can choose what to teach and practice next. It reports bounded evidence, not an official placement result, and a first check never assigns a language level from one task per area.
 _Avoid_: Official placement, pass prediction, certified grade, exam score
 
 **Placement Test Profile**:
@@ -29,11 +29,11 @@ MVP speaking feedback uses Workers AI transcription plus transcript-level surfac
 _Avoid_: Pronunciation score, dedicated speech-scoring provider
 
 **Skill Profile**:
-A lightweight post-assessment summary of bounded section evidence, priority weaknesses, missed-answer corrections, confidence limits, and plain-language explanations tied to the Placement Test Profile.
+A lightweight post-assessment summary of bounded section evidence, priority weaknesses, missed-answer corrections, confidence limits, and plain-language explanations tied to the Placement Test Profile. It only names a Skill Band when enough relevant evidence exists.
 _Avoid_: Grade level, uncalibrated CEFR score, report card, pass prediction
 
 **Skill Band**:
-An internal practice-routing label for one assessed area, such as emerging, developing, functional, or strong. Learner-facing copy pairs it with evidence count and confidence and never presents it as an official placement classification.
+An internal practice-routing label for one assessed area, such as emerging, developing, functional, or strong. Learner-facing copy pairs it with evidence count and confidence, never shows it after a single short task, and never presents it as an official placement classification.
 _Avoid_: CEFR equivalence, IELTS score, TOEFL score, institution cut score
 
 **Error Signal**:

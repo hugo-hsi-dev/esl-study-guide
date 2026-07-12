@@ -1,8 +1,14 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { getLoginPage, signInUsername } from './data.remote';
 
 	const page = await getLoginPage();
 	const signInIssues = $derived(signInUsername.fields.allIssues() ?? []);
+
+	$effect(() => {
+		const redirectTo = signInUsername.result?.redirectTo ?? page.redirectTo;
+		if (redirectTo) void goto(redirectTo);
+	});
 </script>
 
 <svelte:head><title>Sign in</title></svelte:head>
@@ -14,7 +20,7 @@
 	</header>
 
 	<form {...signInUsername} class="flex flex-col gap-4">
-		<input type="hidden" name="redirectTo" value={page.redirectTo} />
+		<input type="hidden" name="redirectTo" value={page.requestedRedirectTo} />
 		<label class="flex flex-col gap-1 text-sm font-medium text-zinc-800">
 			Username
 			<input
@@ -59,4 +65,13 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if signInUsername.result?.redirectTo}
+		<p
+			class="rounded border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800"
+			role="status"
+		>
+			Signed in. Redirecting…
+		</p>
+	{/if}
 </main>
