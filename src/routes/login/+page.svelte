@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { getLoginPage, signInUsername } from './data.remote';
 
-	await getLoginPage();
+	const page = await getLoginPage();
+	const signInIssues = $derived(signInUsername.fields.allIssues() ?? []);
 </script>
 
 <svelte:head><title>Sign in</title></svelte:head>
@@ -13,12 +14,15 @@
 	</header>
 
 	<form {...signInUsername} class="flex flex-col gap-4">
+		<input type="hidden" name="redirectTo" value={page.redirectTo} />
 		<label class="flex flex-col gap-1 text-sm font-medium text-zinc-800">
 			Username
 			<input
-				class="min-h-11 rounded border border-zinc-300 px-3 py-2"
+				class="min-h-11 rounded border border-zinc-300 px-3 py-2 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-100"
 				name="username"
 				autocomplete="username"
+				aria-invalid={signInIssues.length ? 'true' : undefined}
+				aria-describedby={signInIssues.length ? 'sign-in-errors' : undefined}
 				required
 			/>
 		</label>
@@ -26,25 +30,33 @@
 		<label class="flex flex-col gap-1 text-sm font-medium text-zinc-800">
 			Password
 			<input
-				class="min-h-11 rounded border border-zinc-300 px-3 py-2"
+				class="min-h-11 rounded border border-zinc-300 px-3 py-2 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-100"
 				type="password"
 				name="password"
 				autocomplete="current-password"
+				aria-invalid={signInIssues.length ? 'true' : undefined}
+				aria-describedby={signInIssues.length ? 'sign-in-errors' : undefined}
 				required
 			/>
 		</label>
 
 		<button
-			class="min-h-11 rounded bg-zinc-950 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+			class="min-h-11 rounded bg-zinc-950 px-4 py-2 font-medium text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-400"
 			disabled={signInUsername.pending > 0}
 		>
 			{signInUsername.pending > 0 ? 'Signing in...' : 'Sign in'}
 		</button>
 	</form>
 
-	{#each signInUsername.fields.allIssues() ?? [] as issue, index (`${issue.message}-${index}`)}
-		<p class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-			{issue.message}
-		</p>
-	{/each}
+	<div id="sign-in-errors" aria-live="assertive" aria-atomic="true">
+		{#if signInIssues.length}
+			<div class="space-y-2" role="alert">
+				{#each signInIssues as issue, index (`${issue.message}-${index}`)}
+					<p class="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+						{issue.message}
+					</p>
+				{/each}
+			</div>
+		{/if}
+	</div>
 </main>

@@ -6,23 +6,26 @@ import { z } from 'zod';
 import { getAuth } from '$lib/server/auth';
 import { getDb } from '$lib/server/db';
 import { user } from '$lib/server/db/schema';
-import { getAccountRole, redirectForRole } from '$lib/server/roles';
+import { getAccountRole, redirectForRoleRequest } from '$lib/server/roles';
 // @ts-expect-error SvelteKit next exports this runtime class without module types.
 import { Redirect } from '@sveltejs/kit/internal';
 
 const usernameAuthSchema = z.object({
 	username: z.string().min(1),
-	password: z.string().min(1)
+	password: z.string().min(1),
+	redirectTo: z.string().max(2048).optional()
 });
 
 export const getLoginPage = query(() => {
 	const event = getRequestEvent();
+	const redirectTo = event.url.searchParams.get('redirectTo')?.slice(0, 2048) ?? '';
 
 	if (event.locals.user) {
-		throw new Redirect(302, redirectForRole(getAccountRole(event.locals.user) ?? 'learner'));
+		const role = getAccountRole(event.locals.user) ?? 'learner';
+		throw new Redirect(302, redirectForRoleRequest(role, redirectTo));
 	}
 
-	return {};
+	return { redirectTo };
 });
 
 export const signInUsername = form(usernameAuthSchema, async (data) => {
@@ -44,5 +47,5 @@ export const signInUsername = form(usernameAuthSchema, async (data) => {
 		.limit(1);
 	const role = getAccountRole(account ?? {});
 	if (!role) invalid('This account is not allowed to use the study tool.');
-	throw new Redirect(302, redirectForRole(role));
+	throw new Redirect(302, redirectForRoleRequest(role, data.redirectTo));
 });

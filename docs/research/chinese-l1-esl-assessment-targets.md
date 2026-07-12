@@ -2,6 +2,11 @@
 
 Date: 2026-07-08
 
+> **Scope update (2026-07-11):** The product is now an exam-aligned placement
+> study tool. The earlier recommendation to defer broader reading and listening
+> strategies no longer applies when the selected Placement Test Profile includes
+> those sections. See [placement-test-profiles.md](placement-test-profiles.md).
+
 ## Question
 
 What English-learning error patterns, transfer effects, and assessment targets matter most for Chinese L1 learners, and which are practical to assess in a first MVP?
@@ -66,9 +71,14 @@ Use CEFR as a light organizing scale, not as a claim of full CEFR certification.
 | Listening/reading strategies            | Important for overall ESL proficiency, less Chinese-L1-specific                  | Medium-low        | Defer unless destination becomes placement/exam prep |
 | Speaking fluency/pragmatics             | Important but expensive to score well                                            | Low for first MVP | Defer                                                |
 
-## Decision for the map
+## Original MVP decision
 
 The first MVP should focus on a diagnostic grammar/usage test plus a short writing sample. It should produce target-level study recommendations for articles/determiners, verb morphology/finiteness, plural/countability, prepositions, agreement, he/she pronoun choice, sentence control, and collocation. Pronunciation, listening, reading, speaking fluency, and full CEFR/TOEFL-style scoring should stay out of the first build unless a later ticket changes the product scope.
+
+The 2026-07-11 placement-preparation goal is that later scope change. Reading,
+listening, and exam-specific task formats are now required when they appear in
+the selected Placement Test Profile. The caution against uncalibrated CEFR or
+official score claims still stands.
 
 ## Sources
 

@@ -4,6 +4,7 @@ import {
 	hasRole,
 	isAllowedAccountUsername,
 	redirectForRole,
+	redirectForRoleRequest,
 	roleForUsername
 } from './roles';
 
@@ -36,5 +37,26 @@ describe('account roles', () => {
 	it('routes each role to its shell', () => {
 		expect(redirectForRole('admin')).toBe('/admin');
 		expect(redirectForRole('learner')).toBe('/study');
+	});
+
+	it('preserves safe role-appropriate deep links', () => {
+		expect(redirectForRoleRequest('learner', '/practice?from=today')).toBe('/practice?from=today');
+		expect(redirectForRoleRequest('learner', '/guide#before-test-day')).toBe(
+			'/guide#before-test-day'
+		);
+		expect(redirectForRoleRequest('learner', '/assessment/review#writing')).toBe(
+			'/assessment/review#writing'
+		);
+		expect(redirectForRoleRequest('admin', '/admin?section=activity')).toBe(
+			'/admin?section=activity'
+		);
+	});
+
+	it('rejects external and cross-role redirect destinations', () => {
+		expect(redirectForRoleRequest('learner', 'https://example.com/practice')).toBe('/study');
+		expect(redirectForRoleRequest('learner', '//example.com/practice')).toBe('/study');
+		expect(redirectForRoleRequest('learner', '/admin')).toBe('/study');
+		expect(redirectForRoleRequest('admin', '/practice')).toBe('/admin');
+		expect(redirectForRoleRequest('learner', '/practice/../admin')).toBe('/study');
 	});
 });

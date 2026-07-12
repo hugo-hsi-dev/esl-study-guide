@@ -4,25 +4,69 @@ import {
 	assessmentAttempt,
 	type AssessmentIntake,
 	type AttemptResponse,
-	type AttemptSelectedItem
+	type AttemptSelectedItem,
+	type PlacementTestProfile
 } from './db/schema';
 import type { Db } from './db';
 import {
 	diagnoseAssessmentAttempt,
+	placementProfileAreas,
 	validateDiagnosisMetadata,
 	validateSkillProfile,
 	validateStudyPlan
 } from './assessment-diagnosis';
 import {
 	assessmentDefinitionVersion,
+	assessmentFormIds,
+	getCurrentAssessmentItem,
 	getAssessmentItemVersion,
 	getLearnerAssessmentItemVersion,
-	getLearnerAssessmentItems
+	getLearnerAssessmentItems,
+	type AssessmentFormId
 } from './assessment-items';
 import { transcribeSpeakingAudio } from './workers-ai';
 
 const objectiveAreas = ['listening', 'reading', 'grammar_usage', 'vocabulary'] as const;
 const assessmentAreas = [...objectiveAreas, 'writing', 'speaking'] as const;
+export const placementTestKinds = [
+	'accuplacer_esl',
+	'cambridge_cept',
+	'school_specific',
+	'not_sure'
+] as const;
+export const defaultPlacementTestProfile = {
+	kind: 'not_sure',
+	institution: '',
+	targetOutcome: '',
+	knownSections: ''
+} as const satisfies PlacementTestProfile;
+export const placementTestKindSchema = z.enum(placementTestKinds);
+const isCalendarDate = (value: string) => {
+	const [year, month, day] = value.split('-').map(Number);
+	const date = new Date(Date.UTC(year, month - 1, day));
+	return (
+		date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+	);
+};
+export const placementTestDateSchema = z.union([
+	z.literal(''),
+	z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid test date.')
+		.refine(isCalendarDate, 'Use a valid test date.')
+]);
+export const placementTestProfileSchema = z
+	.object({
+		kind: placementTestKindSchema,
+		institution: z.string().trim().max(200).default(''),
+		targetOutcome: z.string().trim().max(300).default(''),
+		knownSections: z.string().trim().max(500).default(''),
+		testDate: placementTestDateSchema.optional()
+	})
+	.transform(({ testDate, ...profile }) => ({
+		...profile,
+		...(testDate ? { testDate } : {})
+	}));
 const ratingSchema = z.union([
 	z.literal(1),
 	z.literal(2),
@@ -37,12 +81,14 @@ export const assessmentIntakeSchema = z.object({
 		reading: ratingSchema,
 		writing: ratingSchema
 	}),
-	timeZone: z.string().trim().min(1).max(100)
+	timeZone: z.string().trim().min(1).max(100),
+	placementTest: placementTestProfileSchema.default(defaultPlacementTestProfile)
 });
 const selectedItemSchema = z.object({
 	id: z.string().trim().min(1).max(100),
 	version: z.number().int().min(1),
-	area: z.enum(assessmentAreas)
+	area: z.enum(assessmentAreas),
+	formId: z.enum(assessmentFormIds).optional()
 });
 const transcriptionMetadataSchema = z.object({
 	provider: z.literal('workers-ai'),
@@ -82,7 +128,7 @@ const responseSchema = z.discriminatedUnion('kind', [
 ]);
 const responsesSchema = z
 	.array(responseSchema)
-	.max(14)
+	.max(21)
 	.superRefine((responses, context) => {
 		const keys = new Set<string>();
 		for (const response of responses) {
@@ -116,8 +162,127 @@ export type SaveAssessmentResponseInput = {
 
 export class AssessmentAttemptInputError extends Error {}
 
-const selectedItems = (): AttemptSelectedItem[] =>
-	getLearnerAssessmentItems().map(({ id, version, area }) => ({ id, version, area }));
+const includesAccuplacerWriting = (profile: PlacementTestProfile) =>
+	/writ|essay|writeplacer/i.test(`${profile.targetOutcome} ${profile.knownSections ?? ''}`);
+
+const assessmentTargetKey = (profile: PlacementTestProfile) =>
+	JSON.stringify({
+		kind: profile.kind,
+		areas: [...placementProfileAreas(profile)].sort()
+	});
+
+export const selectAssessmentItems = (
+	profile: PlacementTestProfile,
+	formId: AssessmentFormId = 'A'
+): AttemptSelectedItem[] => {
+	const areas =
+		profile.kind === 'school_specific' || (profile.knownSections ?? '').trim()
+			? placementProfileAreas(profile)
+			: undefined;
+	return getLearnerAssessmentItems(profile.kind, {
+		...(areas ? { areas } : {}),
+		includeAccuplacerWriting:
+			profile.kind === 'accuplacer_esl' && includesAccuplacerWriting(profile),
+		formId
+	}).map(({ id, version, area, formId: selectedFormId }) => ({
+		id,
+		version,
+		area,
+		formId: selectedFormId
+	}));
+};
+
+export const assessmentFormIdFromSelectedItems = (
+	selectedItems: readonly AttemptSelectedItem[]
+): AssessmentFormId | null => {
+	let formId: AssessmentFormId | null = null;
+	for (const selected of selectedItems) {
+		const itemFormId = getAssessmentItemVersion(selected.id, selected.version)?.formId;
+		if (selected.formId && itemFormId && selected.formId !== itemFormId) {
+			throw new AssessmentAttemptInputError('Stored assessment form does not match its item.');
+		}
+		const resolved = selected.formId ?? itemFormId;
+		if (!resolved) {
+			throw new AssessmentAttemptInputError('Assessment form could not be derived from its items.');
+		}
+		if (formId && formId !== resolved) {
+			throw new AssessmentAttemptInputError('Assessment attempt mixes alternate forms.');
+		}
+		formId = resolved;
+	}
+	return formId;
+};
+
+export const nextAssessmentFormId = (
+	profile: PlacementTestProfile,
+	completedAttemptItems: readonly (readonly AttemptSelectedItem[])[] = []
+): AssessmentFormId | null => {
+	const disclosedItemIds = new Set<string>();
+	for (const selectedItems of completedAttemptItems) {
+		// Validate stored form identity, including deriving it for legacy rows, before using its items.
+		assessmentFormIdFromSelectedItems(selectedItems);
+		for (const selected of selectedItems) disclosedItemIds.add(selected.id);
+	}
+	return (
+		assessmentFormIds.find((formId) =>
+			selectAssessmentItems(profile, formId).every((item) => !disclosedItemIds.has(item.id))
+		) ?? null
+	);
+};
+
+const minimumSelectableBaselineProfiles = [
+	...['Listening', 'Reading', 'Language Use', 'Vocabulary', 'Writing', 'Speaking'].map(
+		(knownSections) => ({
+			kind: 'school_specific' as const,
+			institution: '',
+			targetOutcome: '',
+			knownSections
+		})
+	),
+	...['Listening', 'Reading Skills', 'Language Use', 'Sentence Meaning', 'WritePlacer ESL'].map(
+		(knownSections) => ({
+			kind: 'accuplacer_esl' as const,
+			institution: '',
+			targetOutcome: '',
+			knownSections
+		})
+	),
+	...['Listening', 'Reading'].map((knownSections) => ({
+		kind: 'cambridge_cept' as const,
+		institution: '',
+		targetOutcome: '',
+		knownSections
+	}))
+] satisfies readonly PlacementTestProfile[];
+
+export const assessmentBaselineAvailability = (
+	profile: PlacementTestProfile,
+	completedAttemptItems: readonly (readonly AttemptSelectedItem[])[] = []
+) => {
+	const sameTargetAvailable = nextAssessmentFormId(profile, completedAttemptItems) !== null;
+	return {
+		sameTargetAvailable,
+		anyBaselineAvailable:
+			sameTargetAvailable ||
+			minimumSelectableBaselineProfiles.some(
+				(candidate) => nextAssessmentFormId(candidate, completedAttemptItems) !== null
+			)
+	};
+};
+
+export const hasAllSelectedResponses = (
+	selected: readonly AttemptSelectedItem[],
+	responses: readonly AttemptResponse[]
+) => {
+	const responseKeys = new Set(
+		responses.map((response) => `${response.itemId}:${response.itemVersion}`)
+	);
+	return (
+		selected.length > 0 &&
+		responses.length === selected.length &&
+		selected.every((item) => responseKeys.has(`${item.id}:${item.version}`))
+	);
+};
 
 const stringField = (formData: FormData, name: string) => {
 	const value = formData.get(name);
@@ -130,7 +295,7 @@ const fileField = (formData: FormData, name: string) => {
 };
 
 export async function buildAssessmentResponseDraft(itemId: string, formData: FormData) {
-	const item = getLearnerAssessmentItems().find((candidate) => candidate.id === itemId);
+	const item = getCurrentAssessmentItem(itemId);
 	if (!item) throw new AssessmentAttemptInputError('Assessment Item is not available.');
 
 	if (item.area === 'writing') {
@@ -194,7 +359,8 @@ const completeResponse = (
 	if (
 		objectiveAreas.includes(item.area as (typeof objectiveAreas)[number]) &&
 		draft.kind === 'objective' &&
-		item.choices?.some((choice) => choice.id === draft.answer)
+		((item.answerMode === 'choice' && item.choices?.some((choice) => choice.id === draft.answer)) ||
+			(item.answerMode === 'short_text' && draft.answer.length > 0))
 	) {
 		return {
 			area: item.area as (typeof objectiveAreas)[number],
@@ -207,7 +373,7 @@ const completeResponse = (
 };
 
 export async function buildAssessmentAttemptPayload(formData: FormData) {
-	const selected = selectedItems();
+	const selected = selectAssessmentItems(defaultPlacementTestProfile);
 	const responses: AttemptResponse[] = [];
 	for (const item of selected) {
 		try {
@@ -224,19 +390,49 @@ export async function buildAssessmentAttemptPayload(formData: FormData) {
 
 type AssessmentRow = typeof assessmentAttempt.$inferSelect;
 
-const parseRow = (row: AssessmentRow) => ({
-	...row,
-	intakeJson: assessmentIntakeSchema.parse(row.intakeJson),
-	selectedItemsJson: z.array(selectedItemSchema).parse(row.selectedItemsJson),
-	responsesJson: responsesSchema.parse(row.responsesJson),
-	skillProfileJson: row.skillProfileJson ? validateSkillProfile(row.skillProfileJson) : null,
-	studyPlanJson: row.studyPlanJson ? validateStudyPlan(row.studyPlanJson) : null,
-	diagnosisMetadataJson: row.diagnosisMetadataJson
-		? validateDiagnosisMetadata(row.diagnosisMetadataJson)
-		: null
-});
+const parseSelectedItems = (value: unknown): AttemptSelectedItem[] =>
+	z
+		.array(selectedItemSchema)
+		.parse(value)
+		.map((selected) => ({
+			...selected,
+			formId: selected.formId ?? getAssessmentItemVersion(selected.id, selected.version)?.formId
+		}));
 
-const publicState = (rawRow: AssessmentRow) => {
+const parseRow = (row: AssessmentRow) => {
+	const selectedItemsJson = parseSelectedItems(row.selectedItemsJson);
+	assessmentFormIdFromSelectedItems(selectedItemsJson);
+	return {
+		...row,
+		intakeJson: assessmentIntakeSchema.parse(row.intakeJson),
+		selectedItemsJson,
+		responsesJson: responsesSchema.parse(row.responsesJson),
+		skillProfileJson: row.skillProfileJson ? validateSkillProfile(row.skillProfileJson) : null,
+		studyPlanJson: row.studyPlanJson ? validateStudyPlan(row.studyPlanJson) : null,
+		diagnosisMetadataJson: row.diagnosisMetadataJson
+			? validateDiagnosisMetadata(row.diagnosisMetadataJson)
+			: null
+	};
+};
+
+type PublicStateOptions = {
+	reassessment?: {
+		sameTargetAvailable: boolean;
+		anyBaselineAvailable: boolean;
+		recommended: boolean;
+	};
+};
+
+export type ReassessmentRecommendationContext = {
+	assessmentAttemptId: string;
+	recommended: boolean;
+};
+
+type ReassessmentContextOptions = {
+	reassessmentContext?: ReassessmentRecommendationContext;
+};
+
+const publicState = (rawRow: AssessmentRow, options: PublicStateOptions = {}) => {
 	const row = parseRow(rawRow);
 	const responseKeys = new Set(
 		row.responsesJson.map((response) => `${response.itemId}:${response.itemVersion}`)
@@ -245,9 +441,12 @@ const publicState = (rawRow: AssessmentRow) => {
 		attemptId: row.id,
 		status: row.status,
 		definitionVersion: row.definitionVersion,
+		formId: assessmentFormIdFromSelectedItems(row.selectedItemsJson),
 		intake: row.intakeJson,
 		items: row.selectedItemsJson
-			.map((item) => getLearnerAssessmentItemVersion(item.id, item.version))
+			.map((item) =>
+				getLearnerAssessmentItemVersion(item.id, item.version, row.intakeJson.placementTest.kind)
+			)
 			.filter((item) => item !== undefined),
 		responses: row.responsesJson,
 		nextItemId:
@@ -258,6 +457,9 @@ const publicState = (rawRow: AssessmentRow) => {
 		skillProfile: row.skillProfileJson,
 		studyPlan: row.studyPlanJson,
 		diagnosisMetadata: row.diagnosisMetadataJson,
+		...(row.status === 'completed' && options.reassessment
+			? { reassessment: options.reassessment }
+			: {}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 		completedAt: row.completedAt
@@ -290,6 +492,18 @@ const getActiveAttempt = async (db: Db, learnerUserId: string) => {
 	return attempt;
 };
 
+const getCompletedAttempts = async (db: Db, learnerUserId: string) =>
+	await db
+		.select()
+		.from(assessmentAttempt)
+		.where(
+			and(
+				eq(assessmentAttempt.learnerUserId, learnerUserId),
+				eq(assessmentAttempt.status, 'completed')
+			)
+		)
+		.orderBy(desc(assessmentAttempt.completedAt), desc(assessmentAttempt.createdAt));
+
 export async function authorizeAssessmentResponse(
 	db: Db,
 	learnerUserId: string,
@@ -317,10 +531,14 @@ export async function authorizeAssessmentResponse(
 	if (!item || item.area !== selectedItem.area) {
 		throw new AssessmentAttemptInputError('Assessment Item version is not available.');
 	}
-	return { completedState: null };
+	return { completedState: null, item };
 }
 
-export async function getAssessmentState(db: Db, learnerUserId: string) {
+export async function getAssessmentState(
+	db: Db,
+	learnerUserId: string,
+	options: ReassessmentContextOptions = {}
+) {
 	const active = await getActiveAttempt(db, learnerUserId);
 	if (active) return publicState(active);
 	const [latest] = await db
@@ -329,13 +547,66 @@ export async function getAssessmentState(db: Db, learnerUserId: string) {
 		.where(eq(assessmentAttempt.learnerUserId, learnerUserId))
 		.orderBy(desc(assessmentAttempt.createdAt))
 		.limit(1);
-	return latest ? publicState(latest) : null;
+	if (!latest) return null;
+	const latestRow = parseRow(latest);
+	const completedAttempts = await getCompletedAttempts(db, learnerUserId);
+	const availability = assessmentBaselineAvailability(
+		latestRow.intakeJson.placementTest,
+		completedAttempts.map((attempt) => parseSelectedItems(attempt.selectedItemsJson))
+	);
+	return publicState(latest, {
+		reassessment: {
+			...availability,
+			recommended:
+				options.reassessmentContext?.recommended === true &&
+				options.reassessmentContext.assessmentAttemptId === latest.id
+		}
+	});
 }
 
-export async function startAssessment(db: Db, learnerUserId: string, intake: AssessmentIntake) {
+export async function startAssessment(
+	db: Db,
+	learnerUserId: string,
+	intake: AssessmentIntake,
+	options: ReassessmentContextOptions = {}
+) {
 	const parsedIntake = assessmentIntakeSchema.parse(intake);
 	const active = await getActiveAttempt(db, learnerUserId);
 	if (active) return publicState(active);
+	const completedAttempts = await getCompletedAttempts(db, learnerUserId);
+	const completedAttemptItems = completedAttempts.map((attempt) =>
+		parseSelectedItems(attempt.selectedItemsJson)
+	);
+	const formId = nextAssessmentFormId(parsedIntake.placementTest, completedAttemptItems);
+	if (!formId) {
+		const availability = assessmentBaselineAvailability(
+			parsedIntake.placementTest,
+			completedAttemptItems
+		);
+		throw new AssessmentAttemptInputError(
+			availability.anyBaselineAvailable
+				? 'No reviewed form made entirely of undisclosed tasks remains for this selected profile and section set. A changed profile or subset can start only if every task it would use is still undisclosed.'
+				: 'Every reviewed baseline option contains a task you have already seen. Keep practicing while new reviewed forms are prepared.'
+		);
+	}
+	const requestedTargetKey = assessmentTargetKey(parsedIntake.placementTest);
+	const hasCompletedSameTarget = completedAttempts.some(
+		(completed) =>
+			assessmentTargetKey(assessmentIntakeSchema.parse(completed.intakeJson).placementTest) ===
+			requestedTargetKey
+	);
+	const recommendationMatchesRequestedTarget = completedAttempts.some(
+		(completed) =>
+			options.reassessmentContext?.recommended === true &&
+			completed.id === options.reassessmentContext.assessmentAttemptId &&
+			assessmentTargetKey(assessmentIntakeSchema.parse(completed.intakeJson).placementTest) ===
+				requestedTargetKey
+	);
+	if (hasCompletedSameTarget && !recommendationMatchesRequestedTarget) {
+		throw new AssessmentAttemptInputError(
+			'Keep practicing this same target until Progress recommends reassessment. You can change the test profile or section subset now only when every selected task is still undisclosed.'
+		);
+	}
 
 	const id = crypto.randomUUID();
 	try {
@@ -345,7 +616,7 @@ export async function startAssessment(db: Db, learnerUserId: string, intake: Ass
 			status: 'in_progress',
 			definitionVersion: assessmentDefinitionVersion,
 			intakeJson: parsedIntake,
-			selectedItemsJson: selectedItems(),
+			selectedItemsJson: selectAssessmentItems(parsedIntake.placementTest, formId),
 			responsesJson: []
 		});
 	} catch (error) {
@@ -416,19 +687,14 @@ export async function completeAssessment(
 	}
 
 	const row = parseRow(attempt);
-	const responseKeys = new Set(
-		row.responsesJson.map((response) => `${response.itemId}:${response.itemVersion}`)
-	);
-	if (
-		row.selectedItemsJson.length !== 14 ||
-		row.selectedItemsJson.some((item) => !responseKeys.has(`${item.id}:${item.version}`))
-	) {
+	if (!hasAllSelectedResponses(row.selectedItemsJson, row.responsesJson)) {
 		throw new AssessmentAttemptInputError('Complete every assessment task before finishing.');
 	}
 
 	const diagnosis = await diagnoseAssessmentAttempt({
 		selectedItems: row.selectedItemsJson,
-		responses: row.responsesJson
+		responses: row.responsesJson,
+		placementTest: row.intakeJson.placementTest
 	});
 	const completedAt = new Date();
 	await db
@@ -471,7 +737,8 @@ export async function saveAssessmentAttempt(
 		intakeJson: {
 			goal: 'Build confidence using English in daily life.',
 			selfRatings: { speaking: 3, reading: 3, writing: 3 },
-			timeZone: 'UTC'
+			timeZone: 'UTC',
+			placementTest: defaultPlacementTestProfile
 		},
 		selectedItemsJson: payload.selectedItems,
 		responsesJson: payload.responses,

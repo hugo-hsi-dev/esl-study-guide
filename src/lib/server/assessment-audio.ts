@@ -16,11 +16,153 @@ type TtsEnv = {
 export type GeneratedAssessmentAudio = {
 	bytes: Uint8Array;
 	contentType: 'audio/mpeg' | 'audio/wav';
-	provider: 'workers-ai' | 'deterministic-fixture';
+	provider: 'workers-ai' | 'reviewed-fixture';
 	model: string;
 	schemaVersion: number;
 	itemVersion: number;
 };
+
+export const reviewedAssessmentAudioFixtures = {
+	'listen-mei-coworker-time': {
+		itemVersion: 1,
+		path: '/assessment-audio/listen-mei-coworker-time.wav'
+	},
+	'listen-ana-pharmacy-main-idea': {
+		itemVersion: 1,
+		path: '/assessment-audio/listen-ana-pharmacy-main-idea.wav'
+	},
+	'listen-bus-platform-detail': {
+		itemVersion: 1,
+		path: '/assessment-audio/listen-bus-platform-detail.wav'
+	},
+	'accu-listen-aid-deadline': {
+		itemVersion: 1,
+		path: '/assessment-audio/accu-listen-aid-deadline.wav'
+	},
+	'accu-listen-urban-trees-purpose': {
+		itemVersion: 1,
+		path: '/assessment-audio/accu-listen-urban-trees-purpose.wav'
+	},
+	'cept-listen-tutorial-change': {
+		itemVersion: 1,
+		path: '/assessment-audio/cept-listen-tutorial-change.wav'
+	},
+	'cept-listen-bicycle-study': {
+		itemVersion: 1,
+		path: '/assessment-audio/cept-listen-bicycle-study.wav'
+	},
+	'listen-lee-clinic-time-b': {
+		itemVersion: 1,
+		path: '/assessment-audio/listen-lee-clinic-time-b.wav'
+	},
+	'listen-nora-package-main-idea-b': {
+		itemVersion: 1,
+		path: '/assessment-audio/listen-nora-package-main-idea-b.wav'
+	},
+	'listen-airport-train-track-b': {
+		itemVersion: 1,
+		path: '/assessment-audio/listen-airport-train-track-b.wav'
+	},
+	'accu-listen-registration-room-b': {
+		itemVersion: 1,
+		path: '/assessment-audio/accu-listen-registration-room-b.wav'
+	},
+	'accu-listen-reusable-containers-purpose-b': {
+		itemVersion: 1,
+		path: '/assessment-audio/accu-listen-reusable-containers-purpose-b.wav'
+	},
+	'cept-listen-lab-change-b': {
+		itemVersion: 1,
+		path: '/assessment-audio/cept-listen-lab-change-b.wav'
+	},
+	'cept-listen-part-time-study-b': {
+		itemVersion: 1,
+		path: '/assessment-audio/cept-listen-part-time-study-b.wav'
+	},
+	'listening-main_idea-foundation-1': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-main_idea-foundation-1.wav'
+	},
+	'listening-main_idea-foundation-2': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-main_idea-foundation-2.wav'
+	},
+	'listening-main_idea-practice-1': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-main_idea-practice-1.wav'
+	},
+	'listening-main_idea-practice-2': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-main_idea-practice-2.wav'
+	},
+	'listening-main_idea-challenge-1': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-main_idea-challenge-1.wav'
+	},
+	'listening-main_idea-challenge-2': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-main_idea-challenge-2.wav'
+	},
+	'listening-detail-foundation-1': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-detail-foundation-1.wav'
+	},
+	'listening-detail-foundation-2': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-detail-foundation-2.wav'
+	},
+	'listening-detail-practice-1': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-detail-practice-1.wav'
+	},
+	'listening-detail-practice-2': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-detail-practice-2.wav'
+	},
+	'listening-detail-challenge-1': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-detail-challenge-1.wav'
+	},
+	'listening-detail-challenge-2': {
+		itemVersion: 1,
+		path: '/practice-audio/listening-detail-challenge-2.wav'
+	}
+} as const;
+
+export const reviewedAssessmentAudioModel = 'versioned-static-speech-v1';
+
+export function getReviewedAssessmentAudioFixture(source: AudioSource) {
+	const fixture =
+		reviewedAssessmentAudioFixtures[source.itemId as keyof typeof reviewedAssessmentAudioFixtures];
+	return fixture?.itemVersion === source.itemVersion ? fixture : undefined;
+}
+
+export async function loadReviewedAssessmentAudio(
+	source: AudioSource,
+	baseUrl: URL,
+	fetcher: typeof fetch
+): Promise<GeneratedAssessmentAudio | null> {
+	const fixture = getReviewedAssessmentAudioFixture(source);
+	if (!fixture) return null;
+	const response = await fetcher(new URL(fixture.path, baseUrl));
+	if (!response.ok) return null;
+	const bytes = new Uint8Array(await response.arrayBuffer());
+	if (bytes.length <= 44 || new TextDecoder().decode(bytes.slice(0, 4)) !== 'RIFF') return null;
+	return {
+		bytes,
+		contentType: 'audio/wav',
+		provider: 'reviewed-fixture',
+		model: reviewedAssessmentAudioModel,
+		schemaVersion: assessmentAudioSchemaVersion,
+		itemVersion: source.itemVersion
+	};
+}
+
+export class AssessmentAudioUnavailableError extends Error {
+	constructor() {
+		super('Listening audio is temporarily unavailable. This item must not be scored.');
+	}
+}
 
 export const getWorkersAiTtsModelId = (env?: TtsEnv) =>
 	env?.WORKERS_AI_TTS_MODEL_ID || defaultWorkersAiTtsModel;
@@ -31,7 +173,7 @@ export async function generateAssessmentAudio(
 ): Promise<GeneratedAssessmentAudio> {
 	const model = getWorkersAiTtsModelId(env);
 
-	if (!env?.AI) return deterministicAudio(source, model);
+	if (!env?.AI) throw new AssessmentAudioUnavailableError();
 
 	try {
 		const output = (await env.AI.run(model, ttsInputs(model, source.script))) as TtsOutput;
@@ -45,7 +187,7 @@ export async function generateAssessmentAudio(
 			itemVersion: source.itemVersion
 		};
 	} catch {
-		return deterministicAudio(source, model);
+		throw new AssessmentAudioUnavailableError();
 	}
 }
 
@@ -86,46 +228,4 @@ async function ttsOutputBytes(output: TtsOutput) {
 	if (output instanceof ReadableStream)
 		return new Uint8Array(await new Response(output).arrayBuffer());
 	return base64ToBytes(typeof output === 'string' ? output : output.audio);
-}
-
-function deterministicAudio(source: AudioSource, model: string): GeneratedAssessmentAudio {
-	return {
-		bytes: deterministicWav(source.script),
-		contentType: 'audio/wav',
-		provider: 'deterministic-fixture',
-		model,
-		schemaVersion: assessmentAudioSchemaVersion,
-		itemVersion: source.itemVersion
-	};
-}
-
-function deterministicWav(seed: string) {
-	const sampleRate = 8000;
-	const sampleCount = Math.floor(sampleRate * 0.2);
-	const bytes = new Uint8Array(44 + sampleCount * 2);
-	const view = new DataView(bytes.buffer);
-	const frequency = 440 + (seed.length % 12) * 20;
-
-	writeAscii(bytes, 0, 'RIFF');
-	view.setUint32(4, bytes.length - 8, true);
-	writeAscii(bytes, 8, 'WAVEfmt ');
-	view.setUint32(16, 16, true);
-	view.setUint16(20, 1, true);
-	view.setUint16(22, 1, true);
-	view.setUint32(24, sampleRate, true);
-	view.setUint32(28, sampleRate * 2, true);
-	view.setUint16(32, 2, true);
-	view.setUint16(34, 16, true);
-	writeAscii(bytes, 36, 'data');
-	view.setUint32(40, sampleCount * 2, true);
-
-	for (let i = 0; i < sampleCount; i += 1) {
-		view.setInt16(44 + i * 2, Math.sin((i / sampleRate) * frequency * Math.PI * 2) * 8000, true);
-	}
-
-	return bytes;
-}
-
-function writeAscii(bytes: Uint8Array, offset: number, value: string) {
-	for (let i = 0; i < value.length; i += 1) bytes[offset + i] = value.charCodeAt(i);
 }

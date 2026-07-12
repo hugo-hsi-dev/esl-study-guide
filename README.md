@@ -1,6 +1,6 @@
 # ESL Study Guide
 
-Private SvelteKit study tool for Skill Diagnosis, daily Adaptive Practice, and progress review, backed by Cloudflare D1 and Workers AI.
+Private SvelteKit study tool for exam-aligned ESL placement readiness baselines, teaching-led Adaptive Practice, spaced review, and evidence-based progress, backed by Cloudflare D1 and Workers AI. The tool supports explicit test profiles and does not claim to issue an official placement score.
 
 ## Development
 
